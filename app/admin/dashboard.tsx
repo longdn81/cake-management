@@ -1,47 +1,67 @@
 import { View, Text, StyleSheet, ScrollView, Image, TouchableOpacity, TextInput, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Search, Plus, ChefHat } from 'lucide-react-native';
-import { useRouter } from 'expo-router';
+import { useFocusEffect, useRouter } from 'expo-router';
 
+import { Banner } from '../../src/models/banner.model';
 import { Cake } from '../../src/models/cake.model';
+
 import { getCakes } from '../../src/controllers/admin/cake.controller';
+import { getBanners } from '../../src/controllers/admin/banner.controller';
+
 import { useCallback, useEffect, useState } from 'react';
 
 export default function HomeScreen() {
   const router = useRouter();
 
   // 2. State lưu dữ liệu
-  const [cakes, setCakes] = useState<Cake[]>([]);
+  const [cakes, setCakes] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [banners, setBanners] = useState<Banner[]>([]);
   const [refreshing, setRefreshing] = useState(false);
 
   // 3. Hàm lấy dữ liệu
   const fetchData = async () => {
     try {
-      const data = await getCakes();
-      setCakes(data);
+      setLoading(true);
+      
+      // Chạy song song 2 request để tiết kiệm thời gian
+      const [cakesData, bannersData] = await Promise.all([
+        getCakes(),
+        getBanners()
+      ]);
+
+      // 1. Xử lý dữ liệu Cake
+      const formattedCakes = cakesData.map(item => ({
+        ...item,
+        // Model Cake là mảng images[], lấy ảnh đầu tiên
+        image: (item.images && item.images.length > 0) ? item.images[0] : 'https://via.placeholder.com/150' 
+      }));
+      setCakes(formattedCakes);
+
+      // 2. Xử lý dữ liệu Banner
+      // Model Banner đã chuẩn rồi, gán trực tiếp
+      setBanners(bannersData);
+
     } catch (error) {
-      console.error("Lỗi lấy data dashboard:", error);
+      console.error("Lỗi lấy dữ liệu dashboard:", error);
     } finally {
       setLoading(false);
-      setRefreshing(false);
-    }
+    };
   };
 
   // 4. Gọi hàm khi màn hình mở lên
-  useEffect(() => {
-    fetchData();
-  }, []);
+  useFocusEffect(
+    useCallback(() => {
+      fetchData();
+    }, [])
+  );
 
   // 5. Hàm xử lý khi kéo xuống để reload
   const onRefresh = useCallback(() => {
     setRefreshing(true);
     fetchData();
   }, []);
- const MOCK_BANNERS = [
-  { id: 1, title: 'Summer Sale', discount: '40%', image: 'https://img.freepik.com/free-photo/delicious-cake-with-fruits_144627-17367.jpg' },
-  { id: 2, title: 'New Arrival', discount: '15%', image: 'https://img.freepik.com/free-photo/chocolate-cake-with-chocolate-sprinkles_144627-8056.jpg' },
-];
 
 const MOCK_CATEGORIES = [
   { id: 1, name: 'Cup Cake', icon: 'https://cdn-icons-png.flaticon.com/512/4456/4456209.png' },
@@ -98,15 +118,18 @@ const MOCK_CATEGORIES = [
         </View>
 
         <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.bannerScroll}>
-          {MOCK_BANNERS.map((banner) => (
+          {/* Map dữ liệu thật từ state banners */}
+          {banners.map((banner) => (
             <View key={banner.id} style={styles.bannerCard}>
-              <Image source={{ uri: banner.image }} style={styles.bannerImage} />
+              {/* Lưu ý: Model Banner dùng trường `imageUrl` */}
+              <Image source={{ uri: banner.imageUrl }} style={styles.bannerImage} />
+              
               <View style={styles.bannerOverlay}>
                 <View style={styles.bannerTag}>
                     <Text style={styles.bannerTagText}>Limited</Text>
                 </View>
                 <Text style={styles.bannerTitle}>{banner.title}</Text>
-                <Text style={styles.bannerDiscount}>Up to {banner.discount}</Text>
+                <Text style={styles.bannerDiscount}>{banner.discount}</Text>
               </View>
             </View>
           ))}
