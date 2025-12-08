@@ -1,6 +1,6 @@
 import { db } from '../../services/firebaseConfig';
-import { collection, addDoc, query, getDocs } from 'firebase/firestore';
-import { Cake } from '../../models/cake.model';
+import { collection, addDoc, query, getDocs, updateDoc, doc, deleteDoc } from 'firebase/firestore';
+import { Cake, CakeData } from '../../models/cake.model';
 
 // Hàm thêm bánh mới vào Firestore
 export const addCakeToFirestore = async (newCake: Cake): Promise<void> => {
@@ -33,5 +33,28 @@ export const getCakes = async (): Promise<Cake[]> => {
   } catch (e) {
     console.error('Error getting cakes: ', e);
     throw e;
+  }
+};
+// --- 1. CẬP NHẬT BÁNH (EDIT) ---
+export const updateCake = async (id: string, data: Partial<CakeData>): Promise<void> => {
+  try {
+    const cakeRef = doc(db, 'cakes', id);
+    await updateDoc(cakeRef, data);
+    console.log('Cake updated successfully');
+  } catch (error) {
+    console.error('Error updating cake:', error);
+    throw error;
+  }
+};
+
+// --- 2. XÓA BÁNH (DELETE) ---
+export const deleteCake = async (id: string): Promise<void> => {
+  try {
+    const cakeRef = doc(db, 'cakes', id);
+    await deleteDoc(cakeRef);
+    console.log('Cake deleted successfully');
+  } catch (error) {
+    console.error('Error deleting cake:', error);
+    throw error;
   }
 };

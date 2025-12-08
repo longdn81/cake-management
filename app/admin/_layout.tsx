@@ -105,6 +105,14 @@ export default function TabLayout() {
           ),
         }}
       />
+      <Tabs.Screen
+        name="Management/CakeManagementScreen"
+        options={{
+          href: null,
+          tabBarStyle: { display: 'none' },
+          headerShown: false, // Mình đã tự custom header trong file screen rồi
+        }}
+      />
     </Tabs>
   );
 }

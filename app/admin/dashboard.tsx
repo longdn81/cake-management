@@ -11,7 +11,10 @@ import { getCakes } from '../../src/controllers/admin/cake.controller';
 import { getBanners } from '../../src/controllers/admin/banner.controller';
 import { getCategories } from '../../src/controllers/admin/category.controller';
 
+import CakeModal from '../../src/views/components/modals/CakeModal';
+
 import { useCallback, useEffect, useState } from 'react';
+
 
 export default function HomeScreen() {
   const router = useRouter();
@@ -22,6 +25,10 @@ export default function HomeScreen() {
   const [banners, setBanners] = useState<Banner[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [refreshing, setRefreshing] = useState(false);
+
+  // ---> STATE CHO MODAL EDIT <---
+  const [modalVisible, setModalVisible] = useState(false);
+  const [selectedCake, setSelectedCake] = useState<any>(null);
 
   // 3. Hàm lấy dữ liệu
   const fetchData = async () => {
@@ -68,6 +75,12 @@ export default function HomeScreen() {
     setRefreshing(true);
     fetchData();
   }, []);
+  // ---> 4. HÀM MỞ MODAL KHI BẤM VÀO BÁNH <---
+  const handleEditCake = (cake: any) => {
+    console.log("Edit cake:", cake.name);
+    setSelectedCake(cake); // Lưu bánh được chọn
+    setModalVisible(true); // Hiện modal
+  };
 
   return (
     <SafeAreaView style={styles.container}>
@@ -172,40 +185,48 @@ export default function HomeScreen() {
         </ScrollView>
 
         <View style={styles.sectionHeader}>
-          <Text style={styles.sectionTitle}>Popular Cakes</Text>
-          <TouchableOpacity>
-            <Text style={styles.seeAll}>Manage</Text>
+          <Text style={styles.sectionTitle}>Product List</Text>
+          <TouchableOpacity 
+             onPress={() => router.push('/admin/Management/CakeManagementScreen')} 
+          >
+            <Text style={styles.seeAll}>See All</Text>
           </TouchableOpacity>
         </View>
-
-        {loading ? (
+          {loading && !refreshing ? (
            <ActivityIndicator size="large" color="#d97706" style={{marginTop: 20}} />
         ) : (
            <View style={styles.cakeGrid}>
-             {/* Dữ liệu thật đã được format khớp với code dưới đây */}
              {cakes.map((cake) => (
-               <TouchableOpacity key={cake.id} style={styles.cakeCard}>
-                 {/* Giữ nguyên logic hiển thị ảnh cũ */}
-                 <Image source={{ uri: typeof cake.images === 'string' ? cake.images : cake.images[0] }} style={styles.cakeImage} />
-                 
+               <TouchableOpacity 
+                  key={cake.id} 
+                  style={styles.cakeCard}
+                  onPress={() => handleEditCake(cake)} // <--- BẮT SỰ KIỆN TẠI ĐÂY
+               >
+                 <Image source={{ uri: cake.image }} style={styles.cakeImage} />
                  <View style={styles.cakeInfo}>
-                   <Text style={styles.cakeName}>{cake.name}</Text>
+                   <Text style={styles.cakeName} numberOfLines={1}>{cake.name}</Text>
                    <Text style={styles.cakeCategory}>{cake.category}</Text>
                    <View style={styles.cakeFooter}>
                      <Text style={styles.cakePrice}>${cake.price}</Text>
-                     
-                     {/* Giữ nguyên logic UI check status */}
-                     <View style={[styles.statusBadge, cake.status === 'Low Stock' && styles.statusBadgeWarning]}>
-                       <Text style={[styles.statusText, cake.status === 'Low Stock' && styles.statusTextWarning]}>
-                         {cake.status}
-                       </Text>
-                     </View>
+                     <View style={[
+                      styles.statusBadge, 
+                      cake.status === 'Low Stock' && styles.statusBadgeWarning,
+                      cake.status === 'Out of Stock' && styles.statusBadgeError // <--- Thêm dòng này (Màu đỏ nền)
+                    ]}>
+                      <Text style={[
+                        styles.statusText, 
+                        cake.status === 'Low Stock' && styles.statusTextWarning,
+                        cake.status === 'Out of Stock' && styles.statusTextError // <--- Thêm dòng này (Màu đỏ chữ)
+                      ]}>
+                        {cake.status}
+                      </Text>
+                    </View>
                    </View>
                  </View>
                </TouchableOpacity>
              ))}
            </View>
-        )}
+        )} 
       </ScrollView>
 
       <TouchableOpacity 
@@ -214,6 +235,16 @@ export default function HomeScreen() {
       >
         <Plus size={24} color="#ffffff" />
       </TouchableOpacity>
+
+      <CakeModal 
+        visible={modalVisible}
+        onClose={() => setModalVisible(false)}
+        cake={selectedCake}
+        categories={categories} // Truyền list danh mục để chọn trong modal
+        onUpdateSuccess={() => {
+            fetchData(); // Reload lại Dashboard sau khi sửa xong
+        }}
+      />
     </SafeAreaView>
   );
 }
@@ -342,6 +373,8 @@ const styles = StyleSheet.create({
   statusBadgeWarning: { backgroundColor: '#fef3c7' },
   statusText: { fontSize: 10, fontWeight: '600', color: '#059669' },
   statusTextWarning: { color: '#d97706' },
+  statusBadgeError: { backgroundColor: '#fee2e2' }, // Màu nền đỏ nhạt
+  statusTextError: { color: '#dc2626' },
 
   // --- 8. Floating Action Button ---
   fab: {
