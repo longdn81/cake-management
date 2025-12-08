@@ -2,8 +2,8 @@ import * as ImagePicker from 'expo-image-picker';
 import { Alert } from 'react-native';
 
 // Cấu hình Cloudinary (Nên đưa vào biến môi trường .env nếu có thể)
-const CLOUDINARY_CLOUD_NAME = "dcmlb1cto";
-const CLOUDINARY_UPLOAD_PRESET = "user-management";
+const CLOUDINARY_CLOUD_NAME = process.env.EXPO_PUBLIC_CLOUDINARY_CLOUD_NAME || "demo";
+const CLOUDINARY_UPLOAD_PRESET = process.env.EXPO_PUBLIC_CLOUDINARY_UPLOAD_PRESET || "user-management";
 
 /**
  * Hàm chọn ảnh từ thư viện
