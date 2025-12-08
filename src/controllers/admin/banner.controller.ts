@@ -1,6 +1,6 @@
 import { db } from '../../services/firebaseConfig';
-import { collection, addDoc, getDocs, query, orderBy } from 'firebase/firestore';
-import { Banner } from '../../models/banner.model';
+import { collection, addDoc, getDocs, query, orderBy, deleteDoc, doc, updateDoc } from 'firebase/firestore';
+import { Banner, BannerData } from '../../models/banner.model';
 
 export const addBannerToFirestore = async (newBanner: Banner): Promise<void> => {
   try {
@@ -30,5 +30,29 @@ export const getBanners = async (): Promise<Banner[]> => {
   } catch (error) {
     console.error('Error getting banners: ', error);
     return []; // Trả về mảng rỗng nếu lỗi để app không bị crash
+  }
+};
+
+// --- 3. CẬP NHẬT BANNER ---
+export const updateBanner = async (id: string, data: Partial<BannerData>): Promise<void> => {
+  try {
+    const bannerRef = doc(db, 'banners', id);
+    await updateDoc(bannerRef, data);
+    console.log('Banner updated successfully');
+  } catch (error) {
+    console.error('Error updating banner:', error);
+    throw error;
+  }
+};
+
+// --- 4. XÓA BANNER ---
+export const deleteBanner = async (id: string): Promise<void> => {
+  try {
+    const bannerRef = doc(db, 'banners', id);
+    await deleteDoc(bannerRef);
+    console.log('Banner deleted successfully');
+  } catch (error) {
+    console.error('Error deleting banner:', error);
+    throw error;
   }
 };

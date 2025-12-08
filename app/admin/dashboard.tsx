@@ -13,6 +13,7 @@ import { getCategories } from '../../src/controllers/admin/category.controller';
 
 import CakeModal from '../../src/views/components/modals/CakeModal';
 import CategoryModal from '../../src/views/components/modals/CategoryModal';
+import BannerModal from '../../src/views/components/modals/BannerModal';
 
 import { useCallback, useEffect, useState } from 'react';
 
@@ -33,6 +34,9 @@ export default function HomeScreen() {
   // ---> STATE CHO MODAL CATEGORY (MỚI) <---
   const [categoryModalVisible, setCategoryModalVisible] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState<any>(null);
+  // STATE CHO MODAL BANNER
+  const [bannerModalVisible, setBannerModalVisible] = useState(false);
+  const [selectedBanner, setSelectedBanner] = useState<any>(null);
 
   // 3. Hàm lấy dữ liệu
   const fetchData = async () => {
@@ -79,17 +83,22 @@ export default function HomeScreen() {
     setRefreshing(true);
     fetchData();
   }, []);
-  // ---> 4. HÀM MỞ MODAL KHI BẤM VÀO BÁNH <---
+  //  HÀM MỞ MODAL KHI BẤM VÀO BÁNH <---
   const handleEditCake = (cake: any) => {
     console.log("Edit cake:", cake.name);
     setSelectedCake(cake); // Lưu bánh được chọn
     setModalVisible(true); // Hiện modal
   };
-  // ---> HÀM MỞ MODAL CATEGORY <---
+  // HÀM MỞ MODAL CATEGORY <---
   const handleEditCategory = (cat: any) => {
     console.log("Edit category:", cat.name);
     setSelectedCategory(cat);
     setCategoryModalVisible(true);
+  };
+  // HÀM MỞ MODAL BANNER
+  const handleEditBanner = (banner: any) => {
+    setSelectedBanner(banner);
+    setBannerModalVisible(true);
   };
 
   return (
@@ -133,7 +142,7 @@ export default function HomeScreen() {
         </View>
         <View style={styles.sectionHeader}>
           <Text style={styles.sectionTitle}>Special Offers (Banners)</Text>
-          <TouchableOpacity onPress={() => console.log('Manage Banners')}>
+          <TouchableOpacity onPress={() => router.push('/admin/Management/BannerManagementScreen')}>
             <Text style={styles.seeAll}>Manage</Text>
           </TouchableOpacity>
         </View>
@@ -141,10 +150,13 @@ export default function HomeScreen() {
         <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.bannerScroll}>
           {/* Map dữ liệu thật từ state banners */}
           {banners.map((banner) => (
-            <View key={banner.id} style={styles.bannerCard}>
-              {/* Lưu ý: Model Banner dùng trường `imageUrl` */}
+            <TouchableOpacity 
+                key={banner.id} 
+                style={styles.bannerCard}
+                // ---> GẮN SỰ KIỆN EDIT NHANH TẠI ĐÂY <---
+                onPress={() => handleEditBanner(banner)}
+            >
               <Image source={{ uri: banner.imageUrl }} style={styles.bannerImage} />
-              
               <View style={styles.bannerOverlay}>
                 <View style={styles.bannerTag}>
                     <Text style={styles.bannerTagText}>Limited</Text>
@@ -152,7 +164,7 @@ export default function HomeScreen() {
                 <Text style={styles.bannerTitle}>{banner.title}</Text>
                 <Text style={styles.bannerDiscount}>{banner.discount}</Text>
               </View>
-            </View>
+            </TouchableOpacity>
           ))}
           {/* Nút thêm banner nhanh */}
           <TouchableOpacity 
@@ -270,6 +282,12 @@ export default function HomeScreen() {
         onUpdateSuccess={() => {
             fetchData(); // Reload lại Dashboard sau khi sửa xong danh mục
         }}
+      />
+      <BannerModal 
+         visible={bannerModalVisible}
+         onClose={() => setBannerModalVisible(false)}
+         banner={selectedBanner}
+         onUpdateSuccess={fetchData}
       />
     </SafeAreaView>
   );
