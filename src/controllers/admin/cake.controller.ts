@@ -1,5 +1,5 @@
 import { db } from '../../services/firebaseConfig';
-import { collection, addDoc } from 'firebase/firestore';
+import { collection, addDoc, query, getDocs } from 'firebase/firestore';
 import { Cake } from '../../models/cake.model';
 
 // Hàm thêm bánh mới vào Firestore
@@ -15,4 +15,23 @@ export const addCakeToFirestore = async (newCake: Cake): Promise<void> => {
     throw e; // Ném lỗi ra để màn hình UI bắt được và thông báo cho user
   }
 };
+// hàm lấy data
+export const getCakes = async (): Promise<Cake[]> => {
+  try {
+    const cakesRef = collection(db, 'cakes');
+    // Sắp xếp theo tên hoặc ngày tạo tùy bạn (ở đây mình không sort để mặc định)
+    const q = query(cakesRef); 
+    const querySnapshot = await getDocs(q);
 
+    const cakes: Cake[] = [];
+    querySnapshot.forEach((doc) => {
+      // Sử dụng hàm fromFirestore static trong Model của bạn để convert dữ liệu
+      cakes.push(Cake.fromFirestore(doc));
+    });
+
+    return cakes;
+  } catch (e) {
+    console.error('Error getting cakes: ', e);
+    throw e;
+  }
+};

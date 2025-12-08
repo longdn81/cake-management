@@ -1,44 +1,44 @@
-import { View, Text, StyleSheet, ScrollView, Image, TouchableOpacity, TextInput } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, Image, TouchableOpacity, TextInput, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Search, Plus, ChefHat } from 'lucide-react-native';
 import { useRouter } from 'expo-router';
 
+import { Cake } from '../../src/models/cake.model';
+import { getCakes } from '../../src/controllers/admin/cake.controller';
+import { useCallback, useEffect, useState } from 'react';
+
 export default function HomeScreen() {
   const router = useRouter();
-  const cakes = [
-    {
-      id: 1,
-      name: 'Chocolate Delight',
-      price: 45.00,
-      image: 'https://images.pexels.com/photos/291528/pexels-photo-291528.jpeg',
-      category: 'Chocolate',
-      status: 'Available'
-    },
-    {
-      id: 2,
-      name: 'Strawberry Dream',
-      price: 38.00,
-      image: 'https://images.pexels.com/photos/1120970/pexels-photo-1120970.jpeg',
-      category: 'Fruit',
-      status: 'Available'
-    },
-    {
-      id: 3,
-      name: 'Vanilla Classic',
-      price: 35.00,
-      image: 'https://images.pexels.com/photos/140831/pexels-photo-140831.jpeg',
-      category: 'Classic',
-      status: 'Low Stock'
-    },
-    {
-      id: 4,
-      name: 'Red Velvet',
-      price: 42.00,
-      image: 'https://images.pexels.com/photos/1721934/pexels-photo-1721934.jpeg',
-      category: 'Special',
-      status: 'Available'
-    },
-  ];
+
+  // 2. State lưu dữ liệu
+  const [cakes, setCakes] = useState<Cake[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+
+  // 3. Hàm lấy dữ liệu
+  const fetchData = async () => {
+    try {
+      const data = await getCakes();
+      setCakes(data);
+    } catch (error) {
+      console.error("Lỗi lấy data dashboard:", error);
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  };
+
+  // 4. Gọi hàm khi màn hình mở lên
+  useEffect(() => {
+    fetchData();
+  }, []);
+
+  // 5. Hàm xử lý khi kéo xuống để reload
+  const onRefresh = useCallback(() => {
+    setRefreshing(true);
+    fetchData();
+  }, []);
+ 
 
   return (
     <SafeAreaView style={styles.container}>
@@ -67,9 +67,9 @@ export default function HomeScreen() {
       >
         <View style={styles.statsContainer}>
           <View style={styles.statCard}>
-            <Text style={styles.statValue}>24</Text>
-            <Text style={styles.statLabel}>Total Cakes</Text>
-          </View>
+                <Text style={styles.statValue}>{loading ? "..." : cakes.length}</Text> 
+                <Text style={styles.statLabel}>Total Cakes</Text>
+             </View>
           <View style={styles.statCard}>
             <Text style={styles.statValue}>12</Text>
             <Text style={styles.statLabel}>Orders Today</Text>
@@ -87,25 +87,34 @@ export default function HomeScreen() {
           </TouchableOpacity>
         </View>
 
-        <View style={styles.cakeGrid}>
-          {cakes.map((cake) => (
-            <TouchableOpacity key={cake.id} style={styles.cakeCard}>
-              <Image source={{ uri: cake.image }} style={styles.cakeImage} />
-              <View style={styles.cakeInfo}>
-                <Text style={styles.cakeName}>{cake.name}</Text>
-                <Text style={styles.cakeCategory}>{cake.category}</Text>
-                <View style={styles.cakeFooter}>
-                  <Text style={styles.cakePrice}>${cake.price.toFixed(2)}</Text>
-                  <View style={[styles.statusBadge, cake.status === 'Low Stock' && styles.statusBadgeWarning]}>
-                    <Text style={[styles.statusText, cake.status === 'Low Stock' && styles.statusTextWarning]}>
-                      {cake.status}
-                    </Text>
-                  </View>
-                </View>
-              </View>
-            </TouchableOpacity>
-          ))}
-        </View>
+        {loading ? (
+           <ActivityIndicator size="large" color="#d97706" style={{marginTop: 20}} />
+        ) : (
+           <View style={styles.cakeGrid}>
+             {/* Dữ liệu thật đã được format khớp với code dưới đây */}
+             {cakes.map((cake) => (
+               <TouchableOpacity key={cake.id} style={styles.cakeCard}>
+                 {/* Giữ nguyên logic hiển thị ảnh cũ */}
+                 <Image source={{ uri: typeof cake.images === 'string' ? cake.images : cake.images[0] }} style={styles.cakeImage} />
+                 
+                 <View style={styles.cakeInfo}>
+                   <Text style={styles.cakeName}>{cake.name}</Text>
+                   <Text style={styles.cakeCategory}>{cake.category}</Text>
+                   <View style={styles.cakeFooter}>
+                     <Text style={styles.cakePrice}>${cake.price}</Text>
+                     
+                     {/* Giữ nguyên logic UI check status */}
+                     <View style={[styles.statusBadge, cake.status === 'Low Stock' && styles.statusBadgeWarning]}>
+                       <Text style={[styles.statusText, cake.status === 'Low Stock' && styles.statusTextWarning]}>
+                         {cake.status}
+                       </Text>
+                     </View>
+                   </View>
+                 </View>
+               </TouchableOpacity>
+             ))}
+           </View>
+        )}
       </ScrollView>
 
       <TouchableOpacity 
