@@ -5,9 +5,11 @@ import { useFocusEffect, useRouter } from 'expo-router';
 
 import { Banner } from '../../src/models/banner.model';
 import { Cake } from '../../src/models/cake.model';
+import { Category } from '../../src/models/category.model';
 
 import { getCakes } from '../../src/controllers/admin/cake.controller';
 import { getBanners } from '../../src/controllers/admin/banner.controller';
+import { getCategories } from '../../src/controllers/admin/category.controller';
 
 import { useCallback, useEffect, useState } from 'react';
 
@@ -18,17 +20,19 @@ export default function HomeScreen() {
   const [cakes, setCakes] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [banners, setBanners] = useState<Banner[]>([]);
+  const [categories, setCategories] = useState<Category[]>([]);
   const [refreshing, setRefreshing] = useState(false);
 
   // 3. Hàm lấy dữ liệu
   const fetchData = async () => {
     try {
-      setLoading(true);
+      if (!refreshing) setLoading(true);
       
-      // Chạy song song 2 request để tiết kiệm thời gian
-      const [cakesData, bannersData] = await Promise.all([
+      // Chạy song song 3 request: Cakes, Banners, Categories
+      const [cakesData, bannersData, categoriesData] = await Promise.all([
         getCakes(),
-        getBanners()
+        getBanners(),
+        getCategories() // <-- GỌI HÀM LẤY CATEGORY
       ]);
 
       // 1. Xử lý dữ liệu Cake
@@ -42,6 +46,8 @@ export default function HomeScreen() {
       // 2. Xử lý dữ liệu Banner
       // Model Banner đã chuẩn rồi, gán trực tiếp
       setBanners(bannersData);
+      // C. Xử lý dữ liệu Category
+      setCategories(categoriesData);
 
     } catch (error) {
       console.error("Lỗi lấy dữ liệu dashboard:", error);
@@ -62,14 +68,6 @@ export default function HomeScreen() {
     setRefreshing(true);
     fetchData();
   }, []);
-
-const MOCK_CATEGORIES = [
-  { id: 1, name: 'Cup Cake', icon: 'https://cdn-icons-png.flaticon.com/512/4456/4456209.png' },
-  { id: 2, name: 'Cookies', icon: 'https://cdn-icons-png.flaticon.com/512/541/541732.png' },
-  { id: 3, name: 'Donuts', icon: 'https://cdn-icons-png.flaticon.com/512/3081/3081840.png' },
-  { id: 4, name: 'Breads', icon: 'https://cdn-icons-png.flaticon.com/512/4241/4241664.png' },
-  { id: 5, name: 'Birthday', icon: 'https://cdn-icons-png.flaticon.com/512/2454/2454219.png' },
-];
 
   return (
     <SafeAreaView style={styles.container}>
@@ -152,12 +150,13 @@ const MOCK_CATEGORIES = [
         </View>
 
         <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.categoryScroll}>
-          {MOCK_CATEGORIES.map((cat) => (
+          {categories.map((cat) => (
             <TouchableOpacity key={cat.id} style={styles.categoryItem}>
               <View style={styles.categoryIconContainer}>
+                {/* Model Category có trường `icon` chứa URL ảnh */}
                 <Image source={{ uri: cat.icon }} style={styles.categoryIcon} />
               </View>
-              <Text style={styles.categoryName}>{cat.name}</Text>
+              <Text style={styles.categoryName} numberOfLines={1}>{cat.name}</Text>
             </TouchableOpacity>
           ))}
           {/* Nút thêm category nhanh */}
