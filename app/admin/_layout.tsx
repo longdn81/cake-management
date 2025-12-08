@@ -113,6 +113,14 @@ export default function TabLayout() {
           headerShown: false, // Mình đã tự custom header trong file screen rồi
         }}
       />
+      <Tabs.Screen
+        name="Management/CategoryManagementScreen"
+        options={{
+          href: null,
+          tabBarStyle: { display: 'none' },
+          headerShown: false,
+        }}
+      />
     </Tabs>
   );
 }

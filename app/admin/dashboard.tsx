@@ -12,6 +12,7 @@ import { getBanners } from '../../src/controllers/admin/banner.controller';
 import { getCategories } from '../../src/controllers/admin/category.controller';
 
 import CakeModal from '../../src/views/components/modals/CakeModal';
+import CategoryModal from '../../src/views/components/modals/CategoryModal';
 
 import { useCallback, useEffect, useState } from 'react';
 
@@ -29,6 +30,9 @@ export default function HomeScreen() {
   // ---> STATE CHO MODAL EDIT <---
   const [modalVisible, setModalVisible] = useState(false);
   const [selectedCake, setSelectedCake] = useState<any>(null);
+  // ---> STATE CHO MODAL CATEGORY (MỚI) <---
+  const [categoryModalVisible, setCategoryModalVisible] = useState(false);
+  const [selectedCategory, setSelectedCategory] = useState<any>(null);
 
   // 3. Hàm lấy dữ liệu
   const fetchData = async () => {
@@ -80,6 +84,12 @@ export default function HomeScreen() {
     console.log("Edit cake:", cake.name);
     setSelectedCake(cake); // Lưu bánh được chọn
     setModalVisible(true); // Hiện modal
+  };
+  // ---> HÀM MỞ MODAL CATEGORY <---
+  const handleEditCategory = (cat: any) => {
+    console.log("Edit category:", cat.name);
+    setSelectedCategory(cat);
+    setCategoryModalVisible(true);
   };
 
   return (
@@ -157,14 +167,21 @@ export default function HomeScreen() {
         {/* 3. CATEGORIES SECTION (UI MỚI) */}
         <View style={styles.sectionHeader}>
           <Text style={styles.sectionTitle}>Categories</Text>
-          <TouchableOpacity onPress={() => console.log('Manage Categories')}>
+          <TouchableOpacity 
+             onPress={() => router.push('/admin/Management/CategoryManagementScreen')} // <--- SỬA DÒNG NÀY
+          >
             <Text style={styles.seeAll}>Manage</Text>
           </TouchableOpacity>
         </View>
 
         <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.categoryScroll}>
           {categories.map((cat) => (
-            <TouchableOpacity key={cat.id} style={styles.categoryItem}>
+            <TouchableOpacity 
+                key={cat.id} 
+                style={styles.categoryItem}
+                // ---> GẮN SỰ KIỆN TẠI ĐÂY <---
+                onPress={() => handleEditCategory(cat)} 
+            >
               <View style={styles.categoryIconContainer}>
                 {/* Model Category có trường `icon` chứa URL ảnh */}
                 <Image source={{ uri: cat.icon }} style={styles.categoryIcon} />
@@ -183,7 +200,7 @@ export default function HomeScreen() {
               <Text style={styles.categoryName}>Add New</Text>
             </TouchableOpacity>
         </ScrollView>
-
+        {/* 4. PRODUCT LIST SECTION */}
         <View style={styles.sectionHeader}>
           <Text style={styles.sectionTitle}>Product List</Text>
           <TouchableOpacity 
@@ -192,6 +209,7 @@ export default function HomeScreen() {
             <Text style={styles.seeAll}>See All</Text>
           </TouchableOpacity>
         </View>
+        {/* load cakes */}
           {loading && !refreshing ? (
            <ActivityIndicator size="large" color="#d97706" style={{marginTop: 20}} />
         ) : (
@@ -243,6 +261,14 @@ export default function HomeScreen() {
         categories={categories} // Truyền list danh mục để chọn trong modal
         onUpdateSuccess={() => {
             fetchData(); // Reload lại Dashboard sau khi sửa xong
+        }}
+      />
+      <CategoryModal 
+        visible={categoryModalVisible}
+        onClose={() => setCategoryModalVisible(false)}
+        category={selectedCategory}
+        onUpdateSuccess={() => {
+            fetchData(); // Reload lại Dashboard sau khi sửa xong danh mục
         }}
       />
     </SafeAreaView>
