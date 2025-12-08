@@ -91,6 +91,20 @@ export default function TabLayout() {
           ),
         }}
       />
+      <Tabs.Screen
+        name="AddScreen/AddCategoryScreen"
+        options={{
+          href: null,
+          tabBarStyle: { display: 'none' },
+          headerShown: true,
+          title: 'Add New Category',
+          headerLeft: () => (
+            <TouchableOpacity onPress={() => router.back()} style={{ marginLeft: 16 }}>
+              <ChevronLeft size={28} color="#111827" />
+            </TouchableOpacity>
+          ),
+        }}
+      />
     </Tabs>
   );
 }

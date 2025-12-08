@@ -76,12 +76,6 @@ export default function AddBannerScreen() {
         behavior={Platform.OS === "ios" ? "padding" : "height"} 
         style={{ flex: 1 }}
       >
-        <View style={styles.header}>
-          <Text style={styles.title}>Add New Banner</Text>
-          <TouchableOpacity onPress={() => router.back()}>
-            <X size={24} color="#374151" />
-          </TouchableOpacity>
-        </View>
 
         <ScrollView contentContainerStyle={styles.content}>
           

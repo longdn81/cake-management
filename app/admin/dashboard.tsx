@@ -161,8 +161,11 @@ const MOCK_CATEGORIES = [
             </TouchableOpacity>
           ))}
           {/* Nút thêm category nhanh */}
-           <TouchableOpacity style={styles.categoryItem}>
-              <View style={[styles.categoryIconContainer, { backgroundColor: '#fff7ed', borderWidth: 1, borderColor: '#d97706' }]}>
+           <TouchableOpacity 
+              style={styles.categoryItem}
+              onPress={() => router.push('/admin/AddScreen/AddCategoryScreen')} 
+           >
+              <View style={[styles.categoryIconContainer, styles.addCategoryIcon]}>
                 <Plus size={24} color="#d97706" />
               </View>
               <Text style={styles.categoryName}>Add New</Text>
