@@ -1,209 +1,264 @@
 import React, { useState, useEffect } from 'react';
 import { 
-  View, Text, StyleSheet, TouchableOpacity, Modal, TextInput, 
-  ActivityIndicator, KeyboardAvoidingView, Platform, ScrollView, Image, Alert
+  Modal, View, Text, StyleSheet, TextInput, TouchableOpacity, 
+  ActivityIndicator, Alert, ScrollView, FlatList 
 } from 'react-native';
-import { X, Save, Camera } from 'lucide-react-native';
-
-// Import Controller & Utils
+import { X, Plus, Trash2, ChevronDown, Check } from 'lucide-react-native';
 import { updateCake } from '../../../controllers/admin/cake.controller';
-import { pickImageFromGallery, uploadToCloudinary } from '../../../helper/uploadImage';
-
-// Định nghĩa Type
-type CakeStatus = 'Available' | 'Low Stock' | 'Out of Stock';
-const STATUS_OPTIONS: CakeStatus[] = ['Available', 'Low Stock', 'Out of Stock'];
 
 interface CakeModalProps {
   visible: boolean;
   onClose: () => void;
-  cake: any;             // Dữ liệu bánh cần sửa
-  categories: any[];     // Danh sách danh mục để chọn
-  onUpdateSuccess: () => void; // Callback để báo cho màn hình cha reload lại dữ liệu
+  cake: any; 
+  categories: any[];
+  onUpdateSuccess: () => void;
 }
 
 export default function CakeModal({ visible, onClose, cake, categories, onUpdateSuccess }: CakeModalProps) {
-  // State form
+  const [loading, setLoading] = useState(false);
+
+  // Form States
   const [name, setName] = useState('');
   const [price, setPrice] = useState('');
   const [stock, setStock] = useState('');
-  const [desc, setDesc] = useState('');
-  const [status, setStatus] = useState<CakeStatus>('Available');
-  const [category, setCategory] = useState('');
-  const [imageUri, setImageUri] = useState('');
-  
-  const [isSaving, setIsSaving] = useState(false);
+  const [category, setCategory] = useState(''); // Lưu tên category
+  const [description, setDescription] = useState('');
+  const [discount, setDiscount] = useState('');
+  const [rate, setRate] = useState('');
 
-  // Mỗi khi mở modal hoặc thay đổi bánh, load dữ liệu vào form
+  // Variants States
+  const [variants, setVariants] = useState<any[]>([]); 
+  const [tempSize, setTempSize] = useState('');        
+  const [tempPrice, setTempPrice] = useState(''); 
+
+  // Modal Category State
+  const [showCatModal, setShowCatModal] = useState(false);
+
+  // Load data
   useEffect(() => {
     if (cake) {
       setName(cake.name);
       setPrice(cake.price.toString());
       setStock(cake.stock.toString());
-      setDesc(cake.description || '');
-      setStatus(cake.status || 'Available');
-      setCategory(cake.category || '');
-      setImageUri(cake.image);
+      setCategory(cake.category);
+      setDescription(cake.description || '');
+      setDiscount(cake.discount ? cake.discount.toString() : '0');
+      setRate(cake.rate ? cake.rate.toString() : '5');
+      setVariants(cake.variants || []);
     }
   }, [cake]);
 
-  // Hàm chọn ảnh mới
-  const handleChangeImage = async () => {
-    const uri = await pickImageFromGallery();
-    if (uri) {
-      setImageUri(uri);
+  const handleAddVariant = () => {
+    if (!tempSize || !tempPrice) {
+      Alert.alert("Thiếu thông tin", "Vui lòng nhập Size và Giá");
+      return;
     }
+    const newVariant = { label: tempSize, price: parseFloat(tempPrice) };
+    setVariants([...variants, newVariant]);
+    setTempSize('');
+    setTempPrice('');
   };
 
-  // Hàm Lưu
-  const handleSave = async () => {
-    if (!cake) return;
-    setIsSaving(true);
+  const handleRemoveVariant = (index: number) => {
+    const newList = [...variants];
+    newList.splice(index, 1);
+    setVariants(newList);
+  };
 
+  const handleUpdate = async () => {
+    setLoading(true);
     try {
-      let finalImageUrl = cake.image; // Mặc định dùng ảnh cũ
-
-      // Nếu ảnh thay đổi (là file trên máy), upload lên Cloudinary
-      if (imageUri && imageUri.startsWith('file://')) {
-          finalImageUrl = await uploadToCloudinary(imageUri);
-      }
-
-      // Gọi Controller update
       await updateCake(cake.id, {
-        name: name,
-        price: parseFloat(price) || 0,
-        stock: parseInt(stock) || 0,
-        description: desc,
-        status: status,
-        category: category,
-        images: [finalImageUrl] 
+        name,
+        price: parseFloat(price),
+        stock: parseInt(stock),
+        category, // Lưu category mới chọn
+        description,
+        discount: parseFloat(discount),
+        rate: parseFloat(rate),
+        variants: variants
       });
-      
       Alert.alert("Success", "Cake updated successfully!");
-      onUpdateSuccess(); // Báo cho cha biết đã xong
-      onClose(); // Đóng modal
+      onUpdateSuccess();
+      onClose();
     } catch (error) {
       console.error(error);
-      Alert.alert("Error", "Failed to update cake");
+      Alert.alert("Error", "Update failed");
     } finally {
-      setIsSaving(false);
+      setLoading(false);
     }
   };
 
   return (
     <Modal visible={visible} animationType="slide" transparent={true} onRequestClose={onClose}>
-        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
+      <View style={styles.modalOverlay}>
+        <View style={styles.modalContainer}>
             
-            {/* Header */}
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Edit Cake</Text>
-              <TouchableOpacity onPress={onClose}>
-                <X size={24} color="#6b7280" />
-              </TouchableOpacity>
+          {/* Header */}
+          <View style={styles.header}>
+            <Text style={styles.title}>Edit Cake</Text>
+            <TouchableOpacity onPress={onClose}>
+              <X size={24} color="#333" />
+            </TouchableOpacity>
+          </View>
+
+          <ScrollView showsVerticalScrollIndicator={false}>
+            {/* Name */}
+            <Text style={styles.label}>Name</Text>
+            <TextInput style={styles.input} value={name} onChangeText={setName} />
+
+            {/* --- CATEGORY SELECTOR (MỚI) --- */}
+            <Text style={styles.label}>Category</Text>
+            <TouchableOpacity 
+                style={styles.selector} 
+                onPress={() => setShowCatModal(true)}
+            >
+                <Text style={{color: '#333', fontSize: 16}}>{category || "Select Category"}</Text>
+                <ChevronDown size={20} color="#666" />
+            </TouchableOpacity>
+
+            {/* Price & Stock */}
+            <View style={styles.row}>
+                <View style={styles.col}>
+                    <Text style={styles.label}>Base Price</Text>
+                    <TextInput style={styles.input} keyboardType="numeric" value={price} onChangeText={setPrice} />
+                </View>
+                <View style={styles.col}>
+                    <Text style={styles.label}>Stock</Text>
+                    <TextInput style={styles.input} keyboardType="numeric" value={stock} onChangeText={setStock} />
+                </View>
             </View>
 
-            <ScrollView showsVerticalScrollIndicator={false}>
-              
-              {/* Image */}
-              <TouchableOpacity style={styles.imageEditContainer} onPress={handleChangeImage}>
-                 <Image source={{ uri: imageUri }} style={styles.imageEditPreview} />
-                 <View style={styles.cameraIconOverlay}>
-                    <Camera size={20} color="#fff" />
-                 </View>
-              </TouchableOpacity>
-
-              {/* Name */}
-              <Text style={styles.label}>Name</Text>
-              <TextInput style={styles.input} value={name} onChangeText={setName} />
-
-              {/* Price & Stock */}
-              <View style={{flexDirection: 'row', gap: 10}}>
-                  <View style={{flex: 1}}>
-                      <Text style={styles.label}>Price ($)</Text>
-                      <TextInput style={styles.input} value={price} onChangeText={setPrice} keyboardType="numeric" />
-                  </View>
-                  <View style={{flex: 1}}>
-                      <Text style={styles.label}>Stock</Text>
-                      <TextInput style={styles.input} value={stock} onChangeText={setStock} keyboardType="numeric" />
-                  </View>
-              </View>
-
-              {/* Category */}
-              <Text style={styles.label}>Category</Text>
-              <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{marginBottom: 10}}>
-                {categories.map((cat) => (
-                    <TouchableOpacity 
-                        key={cat.id} 
-                        style={[styles.chip, category === cat.name && styles.chipSelected]}
-                        onPress={() => setCategory(cat.name)}
-                    >
-                        <Text style={[styles.chipText, category === cat.name && styles.chipTextSelected]}>
-                            {cat.name}
-                        </Text>
+            {/* VARIANTS SECTION */}
+            <Text style={[styles.label, {marginTop: 15}]}>Cake Sizes (Variants)</Text>
+            <View style={styles.variantContainer}>
+                <View style={styles.variantInputRow}>
+                    <View style={{flex: 1.5}}>
+                        <TextInput style={styles.inputSmall} placeholder="Size" value={tempSize} onChangeText={setTempSize} />
+                    </View>
+                    <View style={{flex: 1, marginHorizontal: 8}}>
+                        <TextInput style={styles.inputSmall} placeholder="Price" keyboardType="numeric" value={tempPrice} onChangeText={setTempPrice} />
+                    </View>
+                    <TouchableOpacity style={styles.addVariantBtn} onPress={handleAddVariant}>
+                        <Plus size={20} color="#fff" />
                     </TouchableOpacity>
-                ))}
-              </ScrollView>
+                </View>
 
-              {/* Status */}
-              <Text style={styles.label}>Status</Text>
-              <View style={{flexDirection: 'row', flexWrap: 'wrap', gap: 8}}>
-                  {STATUS_OPTIONS.map((opt) => (
-                      <TouchableOpacity 
-                          key={opt}
-                          style={[styles.chip, status === opt && styles.chipSelected]}
-                          onPress={() => setStatus(opt)}
-                      >
-                           <Text style={[styles.chipText, status === opt && styles.chipTextSelected]}>
-                               {opt}
-                           </Text>
-                      </TouchableOpacity>
-                  ))}
-              </View>
-
-              {/* Description */}
-              <Text style={styles.label}>Description</Text>
-              <TextInput 
-                  style={[styles.input, styles.textArea]} 
-                  value={desc} 
-                  onChangeText={setDesc} 
-                  multiline={true}
-                  textAlignVertical="top"
-              />
-
-              {/* Save Button */}
-              <TouchableOpacity style={styles.saveButton} onPress={handleSave} disabled={isSaving}>
-                {isSaving ? <ActivityIndicator color="#fff" /> : (
-                   <View style={{flexDirection: 'row', alignItems: 'center', gap: 8}}>
-                      <Save size={20} color="#fff" />
-                      <Text style={styles.saveButtonText}>Save Changes</Text>
-                   </View>
+                {variants.length > 0 ? (
+                    variants.map((item, index) => (
+                        <View key={index} style={styles.variantItem}>
+                            <Text style={styles.variantText}>{item.label}</Text>
+                            <Text style={styles.variantPrice}>${item.price}</Text>
+                            <TouchableOpacity onPress={() => handleRemoveVariant(index)}>
+                                <Trash2 size={18} color="#ef4444" />
+                            </TouchableOpacity>
+                        </View>
+                    ))
+                ) : (
+                    <Text style={styles.emptyText}>No variants added.</Text>
                 )}
-              </TouchableOpacity>
-              
-              <View style={{height: 20}} />
-            </ScrollView>
+            </View>
 
-          </View>
-        </KeyboardAvoidingView>
-      </Modal>
+            {/* Rate & Discount */}
+            <View style={styles.row}>
+                <View style={styles.col}>
+                    <Text style={styles.label}>Disc %</Text>
+                    <TextInput style={styles.input} keyboardType="numeric" value={discount} onChangeText={setDiscount} />
+                </View>
+                <View style={styles.col}>
+                    <Text style={styles.label}>Rate</Text>
+                    <TextInput style={styles.input} keyboardType="numeric" value={rate} onChangeText={setRate} />
+                </View>
+            </View>
+
+            <Text style={styles.label}>Description</Text>
+            <TextInput 
+                style={[styles.input, styles.textArea]} 
+                multiline value={description} onChangeText={setDescription} 
+            />
+
+            <TouchableOpacity style={styles.saveBtn} onPress={handleUpdate} disabled={loading}>
+                {loading ? <ActivityIndicator color="#fff"/> : <Text style={styles.saveText}>Update Changes</Text>}
+            </TouchableOpacity>
+            
+            <View style={{height: 20}} />
+          </ScrollView>
+        </View>
+
+        {/* --- INNER MODAL: SELECT CATEGORY --- */}
+        <Modal visible={showCatModal} animationType="fade" transparent={true}>
+            <View style={styles.catModalOverlay}>
+                <View style={styles.catModalContent}>
+                    <View style={styles.header}>
+                        <Text style={styles.title}>Select Category</Text>
+                        <TouchableOpacity onPress={() => setShowCatModal(false)}>
+                            <X size={24} color="#333" />
+                        </TouchableOpacity>
+                    </View>
+                    <FlatList
+                        data={categories}
+                        keyExtractor={(item) => item.id}
+                        renderItem={({ item }) => (
+                            <TouchableOpacity 
+                                style={[styles.catItem, category === item.name && styles.catItemSelected]}
+                                onPress={() => {
+                                    setCategory(item.name);
+                                    setShowCatModal(false);
+                                }}
+                            >
+                                <Text style={[styles.catText, category === item.name && styles.catTextSelected]}>
+                                    {item.name}
+                                </Text>
+                                {category === item.name && <Check size={20} color="#d97706" />}
+                            </TouchableOpacity>
+                        )}
+                    />
+                </View>
+            </View>
+        </Modal>
+
+      </View>
+    </Modal>
   );
 }
 
 const styles = StyleSheet.create({
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
-  modalContent: { backgroundColor: '#fff', borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 20, height: '85%' },
-  modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 },
-  modalTitle: { fontSize: 20, fontWeight: 'bold', color: '#111827' },
-  imageEditContainer: { alignSelf: 'center', width: 120, height: 120, marginBottom: 15, position: 'relative' },
-  imageEditPreview: { width: '100%', height: '100%', borderRadius: 12, borderWidth: 1, borderColor: '#e5e7eb' },
-  cameraIconOverlay: { position: 'absolute', bottom: -5, right: -5, backgroundColor: '#d97706', padding: 8, borderRadius: 20 },
-  label: { fontSize: 14, fontWeight: '600', color: '#374151', marginBottom: 6, marginTop: 12 },
-  input: { borderWidth: 1, borderColor: '#d1d5db', borderRadius: 8, padding: 12, fontSize: 16, backgroundColor: '#f9fafb' },
-  textArea: { height: 80 },
-  chip: { paddingHorizontal: 16, paddingVertical: 8, borderRadius: 20, backgroundColor: '#f3f4f6', marginRight: 8, borderWidth: 1, borderColor: '#e5e7eb' },
-  chipSelected: { backgroundColor: '#fff7ed', borderColor: '#d97706' },
-  chipText: { fontSize: 13, color: '#4b5563' },
-  chipTextSelected: { color: '#d97706', fontWeight: 'bold' },
-  saveButton: { backgroundColor: '#d97706', marginTop: 30, padding: 16, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
-  saveButtonText: { color: '#fff', fontSize: 16, fontWeight: 'bold' }
+  modalContainer: { backgroundColor: '#fff', borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 20, height: '90%' },
+  header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 },
+  title: { fontSize: 20, fontWeight: 'bold' },
+  
+  label: { fontSize: 14, fontWeight: '600', color: '#555', marginTop: 10, marginBottom: 5 },
+  input: { borderWidth: 1, borderColor: '#ddd', borderRadius: 8, padding: 10, fontSize: 16 },
+  
+  // Selector Style
+  selector: { 
+    borderWidth: 1, borderColor: '#ddd', borderRadius: 8, padding: 12, 
+    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' 
+  },
+
+  inputSmall: { borderWidth: 1, borderColor: '#ddd', borderRadius: 8, padding: 8, fontSize: 14 },
+  textArea: { height: 80, textAlignVertical: 'top' },
+  row: { flexDirection: 'row', gap: 10 },
+  col: { flex: 1 },
+
+  // Variants Styles
+  variantContainer: { backgroundColor: '#f9fafb', padding: 10, borderRadius: 8, borderWidth: 1, borderColor: '#eee' },
+  variantInputRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 10 },
+  addVariantBtn: { backgroundColor: '#10b981', width: 36, height: 36, borderRadius: 6, justifyContent: 'center', alignItems: 'center' },
+  variantItem: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 8, borderTopWidth: 1, borderTopColor: '#eee' },
+  variantText: { fontWeight: '600', color: '#333', flex: 1 },
+  variantPrice: { fontWeight: 'bold', color: '#d97706', marginRight: 15 },
+  emptyText: { fontStyle: 'italic', color: '#999', textAlign: 'center', fontSize: 12 },
+
+  saveBtn: { backgroundColor: '#d97706', padding: 15, borderRadius: 10, alignItems: 'center', marginTop: 20, marginBottom: 30 },
+  saveText: { color: '#fff', fontWeight: 'bold', fontSize: 16 },
+
+  // Category Modal Styles
+  catModalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', padding: 20 },
+  catModalContent: { backgroundColor: '#fff', borderRadius: 12, padding: 20, maxHeight: '60%' },
+  catItem: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 15, borderBottomWidth: 1, borderBottomColor: '#f3f4f6' },
+  catItemSelected: { backgroundColor: '#fffbeb' },
+  catText: { fontSize: 16, color: '#374151' },
+  catTextSelected: { color: '#d97706', fontWeight: 'bold' },
 });
