@@ -9,6 +9,11 @@ import {
   ChevronLeft, ShoppingBag, Minus, Plus, Heart, Tag, Star
 } from 'lucide-react-native';
 
+import { getAuth } from 'firebase/auth';
+import { doc, getDoc } from 'firebase/firestore';
+import { db } from '../../src/services/firebaseConfig';
+import { toggleUserFavorite } from '../../src/controllers/auth.controller';
+
 // Import Controller & Model
 import { getCakeById } from '../../src/controllers/admin/cake.controller';
 import { Cake } from '../../src/models/cake.model';
@@ -19,25 +24,52 @@ const THEME_COLOR = '#d97706'; // Cam chủ đạo
 export default function DetailCakeScreen() {
   const router = useRouter();
   const { id } = useLocalSearchParams();
+  const auth = getAuth();
   
   const [cake, setCake] = useState<Cake | null>(null);
   const [loading, setLoading] = useState(true);
   const [quantity, setQuantity] = useState(1);
   const [selectedVariant, setSelectedVariant] = useState<any>(null); 
+  
+  // State Favorite
   const [isFavorite, setIsFavorite] = useState(false);
+  const [favLoading, setFavLoading] = useState(false); // Loading riêng cho nút tim
 
   useEffect(() => {
     const fetchCakeDetails = async () => {
+      // 1. Xử lý ID
       let cakeId = Array.isArray(id) ? id[0] : id;
       if (!cakeId) return;
       cakeId = cakeId.trim();
 
+      // 2. [QUAN TRỌNG] Reset lại trạng thái về chưa like và đang load
+      setIsFavorite(false); // <--- THÊM DÒNG NÀY: Mặc định là chưa thích
       setLoading(true);
+
       try {
+        // 3. Lấy thông tin bánh
         const data = await getCakeById(cakeId);
         setCake(data);
         if (data?.variants && data.variants.length > 0) {
           setSelectedVariant(data.variants[0]);
+        }
+
+        // 4. Kiểm tra xem User đã like chưa
+        const user = auth.currentUser;
+        if (user) {
+            const userDoc = await getDoc(doc(db, "users", user.uid));
+            if (userDoc.exists()) {
+                const favorites = userDoc.data().favorites || [];
+                
+                // Debug: In ra để kiểm tra xem ID có khớp không
+                console.log("Current Cake ID:", cakeId);
+                console.log("User Favorites:", favorites);
+
+                // Chỉ set true nếu ID thực sự có trong danh sách
+                if (favorites.includes(cakeId)) {
+                    setIsFavorite(true);
+                }
+            }
         }
       } catch (error) {
         console.error("Lỗi:", error);
@@ -45,8 +77,34 @@ export default function DetailCakeScreen() {
         setLoading(false);
       }
     };
+
     fetchCakeDetails();
   }, [id]);
+  const toggleFavorite = async () => {
+    const user = auth.currentUser;
+    if (!user) {
+        alert("Vui lòng đăng nhập để lưu yêu thích!");
+        return;
+    }
+    if (!cake) return;
+
+    // UI Optimistic Update (Cập nhật giao diện trước cho mượt)
+    const newStatus = !isFavorite;
+    setIsFavorite(newStatus); 
+
+    try {
+        setFavLoading(true);
+        // Gọi controller: nếu đang false -> true (isAdding = true)
+        await toggleUserFavorite(user.uid, cake.id, newStatus);
+        console.log(newStatus ? "Đã thêm vào yêu thích" : "Đã xóa khỏi yêu thích");
+    } catch (error) {
+        // Nếu lỗi thì revert lại UI
+        setIsFavorite(!newStatus);
+        alert("Có lỗi xảy ra, vui lòng thử lại.");
+    } finally {
+        setFavLoading(false);
+    }
+  };
 
   const handleQuantity = (type: 'increase' | 'decrease') => {
     if (type === 'decrease' && quantity > 1) setQuantity(quantity - 1);
@@ -70,8 +128,6 @@ export default function DetailCakeScreen() {
      const sizeLabel = selectedVariant ? `(${selectedVariant.label})` : '';
      alert(`Đã thêm: ${quantity} x ${cake.name} ${sizeLabel}\nTổng: $${totalPrice.toFixed(2)}`);
   };
-
-  const toggleFavorite = () => setIsFavorite(!isFavorite);
 
   if (loading) return <View style={styles.center}><ActivityIndicator size="large" color={THEME_COLOR} /></View>;
   if (!cake) return <View style={styles.center}><Text>Không tìm thấy bánh!</Text></View>;
