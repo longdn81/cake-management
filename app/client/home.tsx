@@ -3,7 +3,7 @@ import {
   View, Text, TextInput, StyleSheet, TouchableOpacity, 
   SafeAreaView, ScrollView, Image, ActivityIndicator, RefreshControl, StatusBar 
 } from 'react-native';
-import { Search, ShoppingBag, Plus, Star, X } from 'lucide-react-native'; 
+import { Search, ShoppingBag, Plus, Star, X, ArrowLeft } from 'lucide-react-native'; 
 import { useRouter, useFocusEffect } from 'expo-router';
 
 // Firebase Imports
@@ -36,6 +36,29 @@ export default function ClientHomeScreen() {
   const [allCakes, setAllCakes] = useState<any[]>([]); // Lưu toàn bộ bánh để search
   const [searchQuery, setSearchQuery] = useState('');    // Lưu từ khóa tìm kiếm
   const [searchResults, setSearchResults] = useState<any[]>([]); // Lưu kết quả tìm thấy
+
+  const [selectedCategory, setSelectedCategory] = useState('All');
+  const filteredData = React.useMemo(() => {
+    let data = allCakes; // allCakes là danh sách gốc bạn đã lưu ở bước trước
+
+    // 1. Lọc theo Category
+    if (selectedCategory !== 'All') {
+      data = data.filter(cake => cake.category === selectedCategory);
+    }
+
+    // 2. Lọc theo Search (nếu có)
+    if (searchQuery) {
+      data = data.filter(cake => 
+        cake.name.toLowerCase().includes(searchQuery.toLowerCase())
+      );
+    }
+    return data;
+  }, [allCakes, selectedCategory, searchQuery]);
+  // Hàm xử lý khi bấm vào Category
+  const handleCategoryPress = (catName: string) => {
+    // Nếu bấm lại cái đang chọn thì bỏ chọn (về All), còn không thì set cái mới
+    setSelectedCategory(prev => prev === catName ? 'All' : catName);
+  };
 
   // [MỚI] Hàm lấy thông tin User
   const fetchUserInfo = async () => {
@@ -191,31 +214,49 @@ export default function ClientHomeScreen() {
         showsVerticalScrollIndicator={false}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[THEME_COLOR]} />}
       >
-        {/* --- ĐIỀU KIỆN HIỂN THỊ --- */}
-        {searchQuery.length > 0 ? (
-            // === GIAO DIỆN KẾT QUẢ TÌM KIẾM ===
-            <View style={{ paddingHorizontal: 20, paddingTop: 20 }}>
-                <Text style={styles.sectionTitle}>Found {searchResults.length} results</Text>
+        {(searchQuery.length > 0 || selectedCategory !== 'All') ? (
+            // === TRƯỜNG HỢP 1: ĐANG LỌC HOẶC TÌM KIẾM ===
+            <View style={{paddingHorizontal: 20, paddingBottom: 50}}>
                 
-                {searchResults.length === 0 ? (
-                    <View style={{ alignItems: 'center', marginTop: 50 }}>
-                        <Text style={{ color: '#9ca3af' }}>No cakes found matching "{searchQuery}"</Text>
+                {/* --- HEADER CỦA PHẦN LỌC (MỚI) --- */}
+                <View style={{flexDirection: 'row', alignItems: 'center', marginBottom: 15}}>
+                    {/* Nút Back nhỏ để reset về Home */}
+                    <TouchableOpacity 
+                        onPress={() => {
+                            setSearchQuery('');       // Xóa tìm kiếm
+                            setSelectedCategory('All'); // Về danh mục All
+                        }}
+                        style={{marginRight: 10}}
+                    >
+                        <ArrowLeft size={24} color="#111827" />
+                    </TouchableOpacity>
+                    
+                    <Text style={[styles.sectionTitle, {marginBottom: 0}]}>
+                        {searchQuery ? `Results: "${searchQuery}"` : `${selectedCategory} Cakes`}
+                    </Text>
+                </View>
+                {/* ---------------------------------- */}
+                
+                {filteredData.length === 0 ? (
+                    // ... (Giữ nguyên phần empty)
+                    <View style={styles.emptyContainer}>
+                        <Text style={styles.emptyText}>No cakes found.</Text>
                     </View>
                 ) : (
-                    // Tái sử dụng Grid Card (giống bên Admin hoặc CakeManagement)
-                    // Hoặc render list dọc đơn giản
-                    <View style={styles.searchGrid}>
-                        {searchResults.map(cake => (
+                    // ... (Giữ nguyên phần Grid)
+                    <View style={styles.gridContainer}>
+                        {filteredData.map(cake => (
                             <TouchableOpacity 
                                 key={cake.id} 
-                                style={styles.cakeCardHorizontal} // Tái sử dụng style card ngang
+                                style={styles.cakeCardGrid} 
                                 onPress={() => handleProductPress(cake.id)}
                             >
+                                {/* ... (Code render card giữ nguyên) ... */}
                                 <View style={styles.imageWrapper}>
-                                    <Image source={{ uri: cake.image }} style={styles.cakeImage} />
+                                    <Image source={{ uri: cake.image }} style={styles.cakeImageGrid} />
                                     <View style={styles.ratingBadge}>
                                         <Star size={10} color="#fff" fill="#fff" />
-                                        <Text style={styles.ratingText}>{cake.rate.toFixed(1)}</Text>
+                                        <Text style={styles.ratingText}>{cake.rate ? cake.rate.toFixed(1) : '0.0'}</Text>
                                     </View>
                                 </View>
                                 <View style={styles.cakeInfo}>
@@ -223,7 +264,7 @@ export default function ClientHomeScreen() {
                                     <Text style={styles.cakeCategory} numberOfLines={1}>{cake.category}</Text>
                                     <View style={styles.cakeFooter}>
                                         <Text style={styles.cakePrice}>${cake.price}</Text>
-                                        <View style={styles.addBtn}><Plus size={16} color="#fff" /></View>
+                                        <View style={styles.addBtn}><Plus size={14} color="#fff" /></View>
                                     </View>
                                 </View>
                             </TouchableOpacity>
@@ -249,14 +290,30 @@ export default function ClientHomeScreen() {
             <TouchableOpacity><Text style={styles.seeAllText}>See all</Text></TouchableOpacity>
         </View>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.categoryScroll} contentContainerStyle={{paddingHorizontal: 20}}>
-          {categories.map((cat) => (
-            <TouchableOpacity key={cat.id} style={styles.categoryItem}>
-              <View style={styles.categoryIconContainer}>
-                <Image source={{ uri: cat.icon }} style={styles.categoryIcon} />
-              </View>
-              <Text style={styles.categoryName} numberOfLines={1}>{cat.name}</Text>
-            </TouchableOpacity>
-          ))}
+          
+          {categories.map((cat) => {
+            const isActive = selectedCategory === cat.name;
+            return (
+              <TouchableOpacity 
+                key={cat.id} 
+                style={styles.categoryItem}
+                onPress={() => handleCategoryPress(cat.name)} // <--- QUAN TRỌNG: Gắn sự kiện
+              >
+                <View style={[
+                    styles.categoryIconContainer, 
+                    isActive && { borderColor: THEME_COLOR, borderWidth: 2 } // Highlight nếu đang chọn
+                ]}>
+                  <Image source={{ uri: cat.icon }} style={styles.categoryIcon} />
+                </View>
+                <Text style={[
+                    styles.categoryName, 
+                    isActive && { color: THEME_COLOR, fontWeight: 'bold' } // Đổi màu chữ nếu đang chọn
+                ]} numberOfLines={1}>
+                    {cat.name}
+                </Text>
+              </TouchableOpacity>
+            )
+          })}
         </ScrollView>
 
         {/* 4. NEW CAKES (Horizontal) */}
@@ -360,12 +417,44 @@ const styles = StyleSheet.create({
   cakeFooter: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   cakePrice: { fontSize: 16, fontWeight: 'bold', color: THEME_COLOR },
   addBtn: { backgroundColor: THEME_COLOR, padding: 6, borderRadius: 8 },
-  // Style mới cho Grid tìm kiếm
-  searchGrid: {
+  
+  gridContainer: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     justifyContent: 'space-between',
     marginTop: 10,
+  },
+
+  cakeCardGrid: {
+    width: '48%', // Chia đôi màn hình (chừa khoảng trống ở giữa)
+    backgroundColor: '#fff',
+    borderRadius: 16,
+    marginBottom: 16, // Khoảng cách dọc giữa các hàng
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
+    elevation: 3, // Bóng đổ cho Android
+    overflow: 'hidden',
+  },
+
+  cakeImageGrid: {
+    width: '100%',
+    height: 130, // Chiều cao ảnh trong Grid
+    backgroundColor: '#f3f4f6',
+    borderTopLeftRadius: 16,
+    borderTopRightRadius: 16,
+  },
+
+  // Style cho trường hợp không tìm thấy kết quả
+  emptyContainer: {
+    alignItems: 'center',
+    marginTop: 50,
+  },
+  emptyText: {
+    color: '#9ca3af',
+    fontSize: 16,
+    fontStyle: 'italic',
   },
 
 });
