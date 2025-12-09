@@ -278,10 +278,19 @@ export default function ClientHomeScreen() {
                 {/* 2. BANNERS */}
         <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.bannerScroll} contentContainerStyle={{paddingHorizontal: 20}}>
           {banners.map((banner) => (
-            <View key={banner.id} style={styles.bannerCard}>
-              <Image source={{ uri: banner.imageUrl }} style={styles.bannerImage} />
-            </View>
-          ))}
+                      <TouchableOpacity 
+                          style={styles.bannerCard} 
+                      >
+                        <Image source={{ uri: banner.imageUrl }} style={styles.bannerImage} />
+                        <View style={styles.bannerOverlay}>
+                          <View style={styles.bannerTag}>
+                              <Text style={styles.bannerTagText}>Limited</Text>
+                          </View>
+                          <Text style={styles.bannerTitle}>{banner.title}</Text>
+                          <Text style={styles.bannerDiscount}>{banner.discount}</Text>
+                        </View>
+                      </TouchableOpacity>
+                    ))}
         </ScrollView>
 
         {/* 3. CATEGORIES */}
@@ -386,10 +395,25 @@ const styles = StyleSheet.create({
   sectionTitle: { fontSize: 18, fontWeight: 'bold', color: '#111827' },
   seeAllText: { fontSize: 14, color: THEME_COLOR, fontWeight: '600' },
 
-  // Banners
-  bannerScroll: { marginTop: 10, marginBottom: 20 },
-  bannerCard: { width: 300, height: 150, marginRight: 15, borderRadius: 16, overflow: 'hidden', backgroundColor: '#e5e7eb' },
+  
+  // Banner Section
+  bannerScroll: { paddingLeft: 10, marginBottom: 24 , marginTop: 10 },
+  bannerCard: {
+    width: 290, height: 160, marginRight: 16,
+    borderRadius: 12, overflow: 'hidden', position: 'relative',
+  },
   bannerImage: { width: '100%', height: '100%', resizeMode: 'cover' },
+  bannerOverlay: {
+    position: 'absolute', top: 0, left: 0, right: 0, bottom: 0,
+    backgroundColor: 'rgba(0,0,0,0.3)', padding: 12, justifyContent: 'center',
+  },
+  bannerTag: {
+    backgroundColor: '#ffffff', paddingHorizontal: 8, paddingVertical: 4,
+    borderRadius: 4, alignSelf: 'flex-start', marginBottom: 6,
+  },
+  bannerTagText: { fontSize: 10, fontWeight: '700', color: '#d97706' },
+  bannerTitle: { fontSize: 18, fontWeight: '700', color: '#ffffff', marginBottom: 2 },
+  bannerDiscount: { fontSize: 22, fontWeight: '800', color: '#ffffff' },
 
   // Categories
   categoryScroll: { marginBottom: 20 },
