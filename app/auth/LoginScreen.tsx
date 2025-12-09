@@ -212,5 +212,5 @@ const styles = StyleSheet.create({
   clientBtn: { backgroundColor: '#f3f4f6' },
   
   modalBtnTitle: { fontSize: 16, fontWeight: 'bold', color: '#fff' },
-  modalBtnSub: { fontSize: 12, color: 'rgba(255,255,255,0.8)' }
+  modalBtnSub: { fontSize: 12, color: '#333' }
 });
