@@ -129,6 +129,12 @@ export default function ClientHomeScreen() {
       setSearchResults([]);
     }
   };
+  const handleSeeAll = (type: 'new' | 'popular') => {
+    router.push({
+      pathname: "/client/all_products",
+      params: { type: type } // Truyền tham số loại danh sách
+    });
+};
 
   // Hàm xóa tìm kiếm
   const clearSearch = () => {
@@ -275,9 +281,9 @@ export default function ClientHomeScreen() {
                 ) : (
                     // ... (Giữ nguyên phần Grid)
                     <View style={styles.gridContainer}>
-                        {filteredData.map(cake => (
+                        {filteredData.map((cake, index) => (
                             <TouchableOpacity 
-                                key={cake.id} 
+                                key={cake.id || index} 
                                 style={styles.cakeCardGrid} 
                                 onPress={() => handleProductPress(cake.id)}
                             >
@@ -295,12 +301,9 @@ export default function ClientHomeScreen() {
                                     <View style={styles.cakeFooter}>
                                         <Text style={styles.cakePrice}>${cake.price}</Text>
                                         <View style={styles.addBtn}>
-                                          <TouchableOpacity 
-                                              style={styles.addBtn}
-                                              onPress={() => handleQuickAddToCart(cake)}
-                                          >
-                                              <Plus size={14} color="#fff" />
-                                          </TouchableOpacity>
+                                          <TouchableOpacity style={styles.addBtn} onPress={() => handleQuickAddToCart(cake)}>
+                                            <Plus size={14} color="#fff" />
+                                        </TouchableOpacity>
                                         </View>
                                     </View>
                                 </View>
@@ -314,9 +317,10 @@ export default function ClientHomeScreen() {
             <>
                 {/* 2. BANNERS */}
         <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.bannerScroll} contentContainerStyle={{paddingHorizontal: 20}}>
-          {banners.map((banner) => (
+          {banners.map((banner, index)=> (
                       <TouchableOpacity 
-                          style={styles.bannerCard} 
+                          style={styles.bannerCard}
+                          key={banner.id || index} 
                       >
                         <Image source={{ uri: banner.imageUrl }} style={styles.bannerImage} />
                         <View style={styles.bannerOverlay}>
@@ -333,7 +337,6 @@ export default function ClientHomeScreen() {
         {/* 3. CATEGORIES */}
         <View style={styles.sectionHeader}>
             <Text style={styles.sectionTitle}>Categories</Text>
-            <TouchableOpacity><Text style={styles.seeAllText}>See all</Text></TouchableOpacity>
         </View>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.categoryScroll} contentContainerStyle={{paddingHorizontal: 20}}>
           
@@ -365,7 +368,9 @@ export default function ClientHomeScreen() {
         {/* 4. NEW CAKES (Horizontal) */}
         <View style={styles.sectionHeader}>
             <Text style={styles.sectionTitle}>New Arrivals ✨</Text>
-            <TouchableOpacity><Text style={styles.seeAllText}>See all</Text></TouchableOpacity>
+            <TouchableOpacity onPress={() => handleSeeAll('new')}>
+            <Text style={styles.seeAllText}>See all</Text>
+        </TouchableOpacity>
         </View>
         
         {loading && !refreshing ? (
@@ -379,7 +384,9 @@ export default function ClientHomeScreen() {
         {/* 5. POPULAR CAKES (Horizontal) */}
         <View style={[styles.sectionHeader, {marginTop: 20}]}>
             <Text style={styles.sectionTitle}>Popular Cakes 🔥</Text>
-            <TouchableOpacity><Text style={styles.seeAllText}>See all</Text></TouchableOpacity>
+            <TouchableOpacity onPress={() => handleSeeAll('popular')}>
+            <Text style={styles.seeAllText}>See all</Text>
+        </TouchableOpacity>
         </View>
 
         {loading && !refreshing ? (
