@@ -21,6 +21,9 @@ export default function AddInventoryModal({ visible, onClose, onSuccess }: AddIn
   const [quantity, setQuantity] = useState('');
   const [unit, setUnit] = useState('');
   const [category, setCategory] = useState('');
+  const [minQuantity, setMinQuantity] = useState('');
+
+  
 
   // Utility to format category
   const formatCategory = (str: string) => {
@@ -33,6 +36,13 @@ export default function AddInventoryModal({ visible, onClose, onSuccess }: AddIn
     if (!quantity.trim()) { Alert.alert('Missing Info', 'Please enter quantity.'); return; }
     
     const parsedQty = Number(quantity);
+    const parsedMinQty = Number(minQuantity); // [MỚI]
+
+    if (isNaN(parsedMinQty) || parsedMinQty < 0) { 
+        Alert.alert('Invalid', 'Min Stock must be a number'); return; 
+    }
+
+    
     if (isNaN(parsedQty) || parsedQty < 0) { Alert.alert('Invalid Quantity', 'Quantity must be a valid number.'); return; }
     if (!unit.trim()) { Alert.alert('Missing Info', 'Please enter unit.'); return; }
 
@@ -40,9 +50,11 @@ export default function AddInventoryModal({ visible, onClose, onSuccess }: AddIn
     
     setLoading(true);
     try {
-      const newItem = new InventoryItem('', ingredientName.trim(), parsedQty, unit.trim(), finalCategory, parsedQty < 5);
+      const isLow = parsedQty <= parsedMinQty;
+      const newItem = new InventoryItem('', ingredientName.trim(), parsedQty, unit.trim(), finalCategory, isLow, undefined, parsedMinQty);
       await addInventoryToFirestore(newItem);
       
+
       Alert.alert('Success', 'Item added successfully!', [
         { 
           text: 'OK', 
@@ -115,6 +127,16 @@ export default function AddInventoryModal({ visible, onClose, onSuccess }: AddIn
                     onChangeText={setUnit} 
                   />
                 </View>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.label}>Min Level</Text>
+                <TextInput 
+                    style={styles.input} 
+                    placeholder="5" 
+                    keyboardType="numeric" 
+                    value={minQuantity} 
+                    onChangeText={setMinQuantity} 
+                />
+              </View>
               </View>
 
               <Text style={[styles.label, { marginTop: 16 }]}>Category</Text>

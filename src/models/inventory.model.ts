@@ -6,6 +6,7 @@ export interface InventoryData {
   unit: string;
   category: string;
   lowStock: boolean;
+  minQuantity?: number; // [MỚI] Thêm trường này (optional vì data cũ có thể chưa có)
   createdAt: Timestamp;
 }
 
@@ -16,6 +17,7 @@ export class InventoryItem {
   unit: string;
   category: string;
   lowStock: boolean;
+  minQuantity: number; // [MỚI]
   createdAt: Timestamp;
 
   constructor(
@@ -25,7 +27,8 @@ export class InventoryItem {
     unit: string,
     category: string = "Uncategorized",
     lowStock: boolean = false,
-    createdAt: Timestamp = Timestamp.now()
+    createdAt: Timestamp = Timestamp.now(),
+    minQuantity: number = 5 // [MỚI] Giá trị mặc định là 5 nếu không truyền vào
   ) {
     this.id = id;
     this.ingredient = ingredient;
@@ -34,9 +37,10 @@ export class InventoryItem {
     this.category = category;
     this.lowStock = lowStock;
     this.createdAt = createdAt;
+    this.minQuantity = minQuantity;
   }
 
-  // 🔥 FIXED: KHÔNG reset createdAt khi update
+  // Convert dữ liệu để lưu lên Firestore
   toFirestore(): InventoryData {
     return {
       ingredient: this.ingredient,
@@ -44,10 +48,12 @@ export class InventoryItem {
       unit: this.unit,
       category: this.category,
       lowStock: this.lowStock,
-      createdAt: this.createdAt, // giữ nguyên timestamp
+      createdAt: this.createdAt,
+      minQuantity: this.minQuantity, // [MỚI] Lưu mức báo động tùy chỉnh
     };
   }
 
+  // Convert dữ liệu từ Firestore về App
   static fromFirestore(doc: DocumentSnapshot): InventoryItem {
     const data = doc.data() as InventoryData;
     return new InventoryItem(
@@ -57,7 +63,8 @@ export class InventoryItem {
       data.unit,
       data.category ?? "Uncategorized",
       data.lowStock ?? false,
-      data.createdAt ?? Timestamp.now()
+      data.createdAt ?? Timestamp.now(),
+      data.minQuantity ?? 5 // [MỚI] Nếu data cũ không có trường này, mặc định lấy là 5
     );
   }
 }

@@ -34,6 +34,7 @@ export default function InventoryScreen() {
   const [editedQty, setEditedQty] = useState('');
   const [editedUnit, setEditedUnit] = useState('');
   const [editedCategory, setEditedCategory] = useState('');
+  const [editedMinQty, setEditedMinQty] = useState(''); // [NEW] State for min stock
   const [savingInline, setSavingInline] = useState(false);
 
   // --- HÀM TIỆN ÍCH ---
@@ -82,7 +83,7 @@ export default function InventoryScreen() {
 
   // --- XỬ LÝ XÓA ITEM ---
   const handleDelete = (id: string, name: string) => {
-    if (!id) return; // Bảo vệ nếu id rỗng
+    if (!id) return;
     Alert.alert(
       "Xóa nguyên liệu",
       `Bạn có chắc chắn muốn xóa "${name}" không?`,
@@ -113,6 +114,7 @@ export default function InventoryScreen() {
       setEditedQty(String(item.quantity ?? '0'));
       setEditedUnit(item.unit ?? '');
       setEditedCategory(item.category ?? '');
+      setEditedMinQty(String(item.minQuantity || 5)); // [NEW] Load min stock
     }
   };
 
@@ -122,25 +124,40 @@ export default function InventoryScreen() {
     setEditedQty('');
     setEditedUnit('');
     setEditedCategory('');
+    setEditedMinQty('');
   };
 
   const saveInlineEdit = async (id: string) => {
-    if (!id) return; // [FIX]: Check ID tồn tại
+    if (!id) return;
     if (!editedName.trim()) { Alert.alert('Missing', 'Name required'); return; }
     if (!editedQty.trim()) { Alert.alert('Missing', 'Quantity required'); return; }
-    const parsed = Number(editedQty);
-    if (isNaN(parsed) || parsed < 0) { Alert.alert('Invalid', 'Quantity must be non-negative number'); return; }
+    
+    const parsedQty = Number(editedQty);
+    const parsedMinQty = Number(editedMinQty); // [NEW] Parse min stock
+
+    if (isNaN(parsedQty) || parsedQty < 0) { Alert.alert('Invalid', 'Quantity error'); return; }
+    if (isNaN(parsedMinQty) || parsedMinQty < 0) { Alert.alert('Invalid', 'Min Stock error'); return; }
     if (!editedUnit.trim()) { Alert.alert('Missing', 'Unit required'); return; }
 
     const finalCat = formatCategory(editedCategory.trim());
+    
+    // [NEW] Check low stock based on specific item threshold
+    const isLow = parsedQty <= parsedMinQty;
 
     setSavingInline(true);
     try {
-      const updateData = { ingredient: editedName.trim(), quantity: parsed, unit: editedUnit.trim(), category: finalCat, lowStock: parsed < 5 };
+      const updateData = { 
+        ingredient: editedName.trim(), 
+        quantity: parsedQty, 
+        unit: editedUnit.trim(), 
+        category: finalCat, 
+        minQuantity: parsedMinQty, // [NEW] Save min stock
+        lowStock: isLow 
+      };
       await updateInventoryItem(id, updateData);
 
-      // optimistic update locally
-      setItems(prev => prev.map(it => it.id === id ? new InventoryItem(it.id, updateData.ingredient, updateData.quantity, updateData.unit, updateData.category, updateData.lowStock, it.createdAt) : it));
+      // Optimistic update
+      setItems(prev => prev.map(it => it.id === id ? new InventoryItem(it.id, updateData.ingredient, updateData.quantity, updateData.unit, updateData.category, updateData.lowStock, it.createdAt, updateData.minQuantity) : it));
 
       cancelInlineEdit();
     } catch (err) {
@@ -152,14 +169,18 @@ export default function InventoryScreen() {
     }
   };
 
-  const handleUpdateStock = async (id: string, currentQty: number, change: number) => {
-    if (!id) return; // [FIX]: Check ID tồn tại
-    const newQty = currentQty + change;
+  const handleUpdateStock = async (item: InventoryItem, change: number) => {
+    if (!item.id) return;
+    const newQty = item.quantity + change;
     if (newQty < 0) return;
 
-    setItems(prev => prev.map(it => it.id === id ? new InventoryItem(it.id, it.ingredient, newQty, it.unit, it.category, newQty < 5, it.createdAt) : it));
+    // [NEW] Check against item's specific minQuantity
+    const minThreshold = item.minQuantity || 5;
+    const isLow = newQty <= minThreshold;
+
+    setItems(prev => prev.map(it => it.id === item.id ? new InventoryItem(it.id, it.ingredient, newQty, it.unit, it.category, isLow, it.createdAt, it.minQuantity) : it));
     try {
-      await updateInventoryItem(id, { quantity: newQty, lowStock: newQty < 5 });
+      await updateInventoryItem(item.id, { quantity: newQty, lowStock: isLow });
     } catch (err) {
       console.error('Update stock failed', err);
       fetchInventory();
@@ -182,7 +203,7 @@ export default function InventoryScreen() {
       {lowStockCount > 0 && (
         <View style={styles.alertBanner}>
           <AlertTriangle size={20} color="#d97706" />
-          <Text style={styles.alertText}>{lowStockCount} item{lowStockCount > 1 ? 's' : ''} running low on stock</Text>
+          <Text style={styles.alertText}>{lowStockCount} items running low on stock</Text>
         </View>
       )}
 
@@ -277,7 +298,6 @@ export default function InventoryScreen() {
                     </View>
                   ) : (
                     <View style={{ flexDirection: 'row', gap: 8 }}>
-                      {/* [FIX]: Thêm || '' để tránh lỗi undefined */}
                       <TouchableOpacity style={styles.deleteButton} onPress={() => handleDelete(item.id || '', item.ingredient || '')}>
                         <Trash2 size={16} color="#ef4444" />
                       </TouchableOpacity>
@@ -291,14 +311,27 @@ export default function InventoryScreen() {
                 <View style={styles.quantityContainer}>
                   <View style={styles.quantityInfo}>
                     {editingId === item.id ? (
-                      <>
-                        <TextInput value={editedQty} onChangeText={setEditedQty} style={[styles.input, { width: 80 }]} keyboardType="numeric" placeholder="Qty" />
-                        <TextInput value={editedUnit} onChangeText={setEditedUnit} style={[styles.input, { width: 80, marginLeft: 8 }]} placeholder="Unit" />
-                      </>
+                      <View style={{flexDirection: 'row', gap: 5}}>
+                        <View>
+                            <Text style={styles.miniLabel}>Qty</Text>
+                            <TextInput value={editedQty} onChangeText={setEditedQty} style={[styles.input, { width: 60 }]} keyboardType="numeric" />
+                        </View>
+                        <View>
+                            <Text style={styles.miniLabel}>Unit</Text>
+                            <TextInput value={editedUnit} onChangeText={setEditedUnit} style={[styles.input, { width: 60 }]} />
+                        </View>
+                        {/* [NEW] Min Stock Input */}
+                        <View>
+                            <Text style={[styles.miniLabel, {color: '#d97706'}]}>Min</Text>
+                            <TextInput value={editedMinQty} onChangeText={setEditedMinQty} style={[styles.input, { width: 60, borderColor: '#d97706' }]} keyboardType="numeric" />
+                        </View>
+                      </View>
                     ) : (
                       <>
                         <Text style={[styles.quantity, item.lowStock && styles.quantityLow]}>{item.quantity}</Text>
                         <Text style={styles.unit}>{item.unit}</Text>
+                        {/* Show Min Level */}
+                        <Text style={styles.minStockLabel}>(Min: {item.minQuantity || 5})</Text>
                       </>
                     )}
                   </View>
@@ -313,14 +346,13 @@ export default function InventoryScreen() {
 
                 {editingId !== item.id && (
                   <View style={styles.actionButtons}>
-                    {/* [FIX]: Thêm || '' để tránh lỗi undefined */}
-                    <TouchableOpacity style={styles.quantityButton} onPress={() => handleUpdateStock(item.id || '', item.quantity || 0, -1)} disabled={(item.quantity || 0) <= 0}>
+                    <TouchableOpacity style={styles.quantityButton} onPress={() => handleUpdateStock(item, -1)} disabled={item.quantity <= 0}>
                       <Minus size={16} color="#dc2626" />
                     </TouchableOpacity>
                     <View style={styles.quantityDisplay}>
                       <Text style={styles.quantityDisplayText}>Stock Level</Text>
                     </View>
-                    <TouchableOpacity style={styles.quantityButton} onPress={() => handleUpdateStock(item.id || '', item.quantity || 0, 1)}>
+                    <TouchableOpacity style={styles.quantityButton} onPress={() => handleUpdateStock(item, 1)}>
                       <Plus size={16} color="#059669" />
                     </TouchableOpacity>
                   </View>
@@ -364,12 +396,8 @@ const styles = StyleSheet.create({
   inventoryInfo: { flex: 1 },
   ingredientName: { fontSize: 16, fontWeight: '700', color: '#111827', marginBottom: 4 },
   category: { fontSize: 12, color: '#6b7280' },
-  
-  // Nút Sửa (Edit)
   editButton: { width: 32, height: 32, borderRadius: 8, backgroundColor: '#f9fafb', justifyContent: 'center', alignItems: 'center' },
-  // Nút Xóa (Delete)
   deleteButton: { width: 32, height: 32, borderRadius: 8, backgroundColor: '#fef2f2', justifyContent: 'center', alignItems: 'center', borderWidth: 1, borderColor: '#fee2e2' },
-  
   inlineBtn: { backgroundColor: '#059669', paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8, justifyContent: 'center', alignItems: 'center' },
   inlineBtnText: { color: '#fff', fontWeight: '600' },
   inlineCancel: { paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8, justifyContent: 'center', alignItems: 'center' },
@@ -386,4 +414,8 @@ const styles = StyleSheet.create({
   quantityDisplay: { flex: 1, height: 44, borderRadius: 8, backgroundColor: '#f9fafb', justifyContent: 'center', alignItems: 'center' },
   quantityDisplayText: { fontSize: 14, color: '#6b7280', fontWeight: '600' },
   input: { borderWidth: 1, borderColor: '#d1d5db', borderRadius: 8, padding: 12, fontSize: 16, backgroundColor: '#fff', color: '#111827' },
+  
+  // New Styles
+  miniLabel: { fontSize: 10, color: '#6b7280', marginBottom: 2, fontWeight: '500' },
+  minStockLabel: { fontSize: 12, color: '#9ca3af', fontStyle: 'italic' }
 });

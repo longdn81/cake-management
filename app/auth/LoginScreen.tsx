@@ -69,8 +69,8 @@ export default function LoginScreen() {
           {/* Logo / Title Area */}
           <View style={styles.headerSection}>
             <Image 
-                source={{ uri: 'https://cdn-icons-png.flaticon.com/512/3081/3081840.png' }} // Ví dụ icon bánh
-                style={{ width: 80, height: 80, marginBottom: 10 }}
+                source={{ uri: 'https://static.vecteezy.com/system/resources/thumbnails/008/710/154/small/sweet-shop-logo-design-template-of-cake-with-cherries-with-badge-emblem-design-free-vector.jpg' }} // Ví dụ icon bánh
+                style={{ width: 210, height: 210, marginBottom: 0 }}
             />
             <Text style={styles.title}>Welcome Back!</Text>
             <Text style={styles.subtitle}>Login to continue to Bakery App</Text>
@@ -109,13 +109,9 @@ export default function LoginScreen() {
               </TouchableOpacity>
             </View>
 
-            {/* Forgot Password */}
-            <TouchableOpacity style={styles.forgotBtn}>
-              <Text style={styles.forgotText}>Forgot Password?</Text>
-            </TouchableOpacity>
-
+            
             {/* Login Button */}
-            <TouchableOpacity style={styles.loginBtn} onPress={handleLogin} disabled={loading}>
+            <TouchableOpacity style={styles.loginBtn} onPress={handleLogin} disabled={loading} >
               {loading ? (
                 <ActivityIndicator color="#fff" />
               ) : (
@@ -181,7 +177,7 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#fff' },
   contentContainer: { flex: 1, justifyContent: 'center', padding: 24 },
   
-  headerSection: { alignItems: 'center', marginBottom: 40 },
+  headerSection: { alignItems: 'center', marginBottom: 20 },
   title: { fontSize: 28, fontWeight: 'bold', color: '#111827', marginTop: 10 },
   subtitle: { fontSize: 16, color: '#6b7280', marginTop: 5 },
 
@@ -194,7 +190,7 @@ const styles = StyleSheet.create({
   forgotBtn: { alignSelf: 'flex-end', marginTop: 10 },
   forgotText: { color: '#d97706', fontWeight: '500' },
 
-  loginBtn: { backgroundColor: '#d97706', height: 56, borderRadius: 12, justifyContent: 'center', alignItems: 'center', marginTop: 30, shadowColor: '#d97706', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 5, elevation: 4 },
+  loginBtn: { backgroundColor: '#d97706', height: 56, borderRadius: 12, justifyContent: 'center', alignItems: 'center', marginTop: 40, shadowColor: '#d97706', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 5, elevation: 4 },
   loginBtnText: { color: '#fff', fontSize: 18, fontWeight: 'bold' },
 
   registerRow: { flexDirection: 'row', justifyContent: 'center', marginTop: 24 },
