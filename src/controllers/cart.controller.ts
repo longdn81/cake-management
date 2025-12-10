@@ -1,5 +1,5 @@
 // src/controllers/client/cart.controller.ts
-import { collection, addDoc, doc, updateDoc, getDoc } from "firebase/firestore";
+import { collection, addDoc, doc, updateDoc, getDoc, query, where, orderBy, getDocs } from "firebase/firestore";
 import { db } from "../services/firebaseConfig";
 import { Order } from "../models/order.model";
 
@@ -80,3 +80,48 @@ export const createOrder = async (order: Order) => {
     throw error;
   }
 };
+
+export const getUserOrders = async (userId: string): Promise<Order[]> => {
+  try {
+    const ordersRef = collection(db, "orders");
+    // Query: userId == userId hiện tại, sắp xếp ngày tạo giảm dần
+    const q = query(
+      ordersRef, 
+      where("userId", "==", userId),
+      orderBy("createdAt", "desc") 
+    );
+    
+    const querySnapshot = await getDocs(q);
+    const orders: Order[] = [];
+    
+    querySnapshot.forEach((doc) => {
+      const data = doc.data();
+      orders.push(new Order(
+        doc.id,
+        data.userId,
+        data.userName,
+        data.userPhone,
+        data.userAddress,
+        data.items,
+        data.totalPrice,
+        data.status,
+        data.createdAt
+      ));
+    });
+    return orders;
+  } catch (error) {
+    console.error("Error getting user orders:", error);
+    return [];
+  }
+};
+
+// 2. Client cập nhật đơn hàng (Chỉ sửa đc Info hoặc Cancel)
+export const clientUpdateOrder = async (orderId: string, updateData: any) => {
+    try {
+        const orderRef = doc(db, "orders", orderId);
+        await updateDoc(orderRef, updateData);
+    } catch (error) {
+        console.error("Client update order error:", error);
+        throw error;
+    }
+}

@@ -1,7 +1,7 @@
 import React, { useState, useCallback } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Switch, Alert, Image } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { User, Bell, CreditCard, HelpCircle, LogOut, ChevronRight, Moon, Lock } from 'lucide-react-native';
+import { User, Bell, CreditCard, HelpCircle, LogOut, ChevronRight, Moon, Lock, Package } from 'lucide-react-native';
 import { useRouter, useFocusEffect } from 'expo-router';
 
 // Firebase Imports
@@ -87,6 +87,12 @@ export default function ClientProfileScreen() {
             label: 'Change Password', 
             hasArrow: true,
             onPress: () => setChangePassVisible(true) // Mở modal Đổi Pass
+        },
+        { 
+        icon: Package, 
+        label: 'Your Orders', 
+        hasArrow: true, 
+        onPress: () => router.push('/client/your_orders') 
         },
         // { icon: CreditCard, label: 'Payment Methods', hasArrow: true }, // Tạm ẩn hoặc để làm sau
       ],

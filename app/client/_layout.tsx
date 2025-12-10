@@ -104,6 +104,14 @@ export default function ClientLayout() {
           headerShown: false,
         }}
       />
+      <Tabs.Screen
+        name="your_orders" 
+        options={{
+          href: null, // Ẩn khỏi menu
+          tabBarStyle: { display: 'none' }, // Ẩn thanh tab khi vào trang này
+          headerShown: false,
+        }}
+      />
     </Tabs>
   );
 }
