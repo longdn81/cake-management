@@ -1,37 +1,34 @@
 import React, { useCallback, useMemo, useState } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput,
-  RefreshControl, ActivityIndicator, Modal, KeyboardAvoidingView, Platform, Alert, TouchableWithoutFeedback, Keyboard
+  RefreshControl, ActivityIndicator, Alert
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Search, Plus, Minus, AlertTriangle, Edit2, X } from 'lucide-react-native';
+import { Search, Plus, Minus, AlertTriangle, Edit2, Trash2 } from 'lucide-react-native';
 import { useRouter, useFocusEffect } from 'expo-router';
 
-// CONTROLLER & MODEL (đường dẫn giữ nguyên như bạn gửi)
-import { getInventoryList, updateInventoryItem, addInventoryToFirestore } from '../../src/controllers/admin/inventory.controller';
+// CONTROLLER & MODEL
+import { getInventoryList, updateInventoryItem, deleteInventoryItem } from '../../src/controllers/admin/inventory.controller';
 import { InventoryItem } from '../../src/models/inventory.model';
+
+// MODAL
+import AddInventoryModal from '../../src/views/components/modals/AddInventoryModal';
 
 export default function InventoryScreen() {
   const router = useRouter();
 
-  // list
+  // --- STATE DỮ LIỆU ---
   const [items, setItems] = useState<InventoryItem[]>([]);
   const [loadingList, setLoadingList] = useState(true);
 
-  // search
+  // State Filter & Search
+  const [selectedCategory, setSelectedCategory] = useState<string>("All");
   const [searchText, setSearchText] = useState('');
 
-  // modal add
+  // modal visibility
   const [modalVisible, setModalVisible] = useState(false);
-  const [loadingAdd, setLoadingAdd] = useState(false);
 
-  // add form
-  const [ingredientName, setIngredientName] = useState('');
-  const [quantity, setQuantity] = useState('');
-  const [unit, setUnit] = useState('');
-  const [category, setCategory] = useState('');
-
-  // inline edit states
+  // --- STATE INLINE EDIT ---
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editedName, setEditedName] = useState('');
   const [editedQty, setEditedQty] = useState('');
@@ -39,11 +36,17 @@ export default function InventoryScreen() {
   const [editedCategory, setEditedCategory] = useState('');
   const [savingInline, setSavingInline] = useState(false);
 
-  // fetch
-  const fetchInventory = async () => {
+  // --- HÀM TIỆN ÍCH ---
+  const formatCategory = (str: string) => {
+    if (!str || str.trim() === '') return 'General';
+    return str.charAt(0).toUpperCase() + str.slice(1).toLowerCase();
+  };
+
+  // --- 1. TẢI DỮ LIỆU ---
+  const fetchInventory = useCallback(async () => {
     setLoadingList(true);
     try {
-      const data = await getInventoryList();
+      const data = await getInventoryList(); 
       setItems(data);
     } catch (err) {
       console.error('LỖI KHI TẢI DỮ LIỆU:', err);
@@ -51,56 +54,66 @@ export default function InventoryScreen() {
     } finally {
       setLoadingList(false);
     }
-  };
+  }, []);
 
-  useFocusEffect(useCallback(() => { fetchInventory(); }, []));
+  useFocusEffect(useCallback(() => { fetchInventory(); }, [fetchInventory]));
+  const onRefresh = useCallback(() => { fetchInventory(); }, [fetchInventory]);
 
-  // filter
+  // --- 2. TỰ ĐỘNG TRÍCH XUẤT CATEGORY ---
+  const dynamicCategories = useMemo(() => {
+    const allCats = items.map(i => i.category ? formatCategory(i.category) : 'General');
+    return ["All", ...Array.from(new Set(allCats))];
+  }, [items]);
+
+  // --- 3. LOGIC LỌC DỮ LIỆU ---
   const filteredItems = useMemo(() => {
-    if (!searchText.trim()) return items;
-    const lower = searchText.toLowerCase();
-    return items.filter(i =>
-      (i.ingredient || '').toLowerCase().includes(lower) ||
-      (i.category || '').toLowerCase().includes(lower) ||
-      (i.unit || '').toLowerCase().includes(lower)
+    return items.filter(item => {
+      const itemCat = item.category ? formatCategory(item.category) : 'General';
+      const matchCategory = selectedCategory === "All" || itemCat === selectedCategory;
+      const lowerSearch = searchText.toLowerCase();
+      const matchSearch = !searchText.trim() || 
+        (item.ingredient || '').toLowerCase().includes(lowerSearch) ||
+        (item.category || '').toLowerCase().includes(lowerSearch);
+      return matchCategory && matchSearch;
+    });
+  }, [items, selectedCategory, searchText]);
+
+  const handleCategoryPress = (category: string) => { setSelectedCategory(category); };
+
+  // --- XỬ LÝ XÓA ITEM ---
+  const handleDelete = (id: string, name: string) => {
+    if (!id) return; // Bảo vệ nếu id rỗng
+    Alert.alert(
+      "Xóa nguyên liệu",
+      `Bạn có chắc chắn muốn xóa "${name}" không?`,
+      [
+        { text: "Hủy", style: "cancel" },
+        {
+          text: "Xóa",
+          style: "destructive",
+          onPress: async () => {
+            try {
+              await deleteInventoryItem(id);
+              setItems(prevItems => prevItems.filter(item => item.id !== id));
+            } catch (error) {
+              console.error("Lỗi khi xóa:", error);
+              Alert.alert("Lỗi", "Không thể xóa nguyên liệu này.");
+            }
+          }
+        }
+      ]
     );
-  }, [items, searchText]);
-
-  // ADD (unchanged from yours)
-  const handleSave = async () => {
-    if (!ingredientName.trim()) { Alert.alert('Missing Info', 'Please enter ingredient name.'); return; }
-    if (!quantity.trim()) { Alert.alert('Missing Info', 'Please enter quantity.'); return; }
-    const parsedQty = Number(quantity);
-    if (isNaN(parsedQty) || parsedQty < 0) { Alert.alert('Invalid Quantity', 'Quantity must be a valid number.'); return; }
-    if (!unit.trim()) { Alert.alert('Missing Info', 'Please enter unit.'); return; }
-
-    const finalCategory = category.trim() === '' ? 'General' : category.trim();
-    setLoadingAdd(true);
-    try {
-      const newItem = new InventoryItem('', ingredientName.trim(), parsedQty, unit.trim(), finalCategory, parsedQty < 5);
-      await addInventoryToFirestore(newItem);
-      Alert.alert('Success', 'Item added successfully!', [{ text: 'OK', onPress: () => { setModalVisible(false); resetForm(); fetchInventory(); } }]);
-    } catch (error: any) {
-      console.error('❌ FIRESTORE ERROR:', error);
-      Alert.alert('Error', error.message || 'Failed to add item.');
-    }
-    setLoadingAdd(false);
   };
 
-  const resetForm = () => {
-    setIngredientName('');
-    setQuantity('');
-    setUnit('');
-    setCategory('');
-  };
-
-  // inline edit open
+  // --- INLINE EDIT LOGIC ---
   const openInlineEdit = (item: InventoryItem) => {
-    setEditingId(item.id);
-    setEditedName(item.ingredient ?? '');
-    setEditedQty(String(item.quantity ?? '0'));
-    setEditedUnit(item.unit ?? '');
-    setEditedCategory(item.category ?? '');
+    if (item.id) {
+      setEditingId(item.id);
+      setEditedName(item.ingredient ?? '');
+      setEditedQty(String(item.quantity ?? '0'));
+      setEditedUnit(item.unit ?? '');
+      setEditedCategory(item.category ?? '');
+    }
   };
 
   const cancelInlineEdit = () => {
@@ -111,17 +124,19 @@ export default function InventoryScreen() {
     setEditedCategory('');
   };
 
-  // inline save
   const saveInlineEdit = async (id: string) => {
+    if (!id) return; // [FIX]: Check ID tồn tại
     if (!editedName.trim()) { Alert.alert('Missing', 'Name required'); return; }
     if (!editedQty.trim()) { Alert.alert('Missing', 'Quantity required'); return; }
     const parsed = Number(editedQty);
     if (isNaN(parsed) || parsed < 0) { Alert.alert('Invalid', 'Quantity must be non-negative number'); return; }
     if (!editedUnit.trim()) { Alert.alert('Missing', 'Unit required'); return; }
 
+    const finalCat = formatCategory(editedCategory.trim());
+
     setSavingInline(true);
     try {
-      const updateData = { ingredient: editedName.trim(), quantity: parsed, unit: editedUnit.trim(), category: editedCategory.trim() || 'General', lowStock: parsed < 5 };
+      const updateData = { ingredient: editedName.trim(), quantity: parsed, unit: editedUnit.trim(), category: finalCat, lowStock: parsed < 5 };
       await updateInventoryItem(id, updateData);
 
       // optimistic update locally
@@ -131,15 +146,14 @@ export default function InventoryScreen() {
     } catch (err) {
       console.error('Inline update failed', err);
       Alert.alert('Error', 'Failed to update item.');
-      // try refetch to recover
       fetchInventory();
     } finally {
       setSavingInline(false);
     }
   };
 
-  // +/- stock (unchanged logic, still optimistic + persist)
   const handleUpdateStock = async (id: string, currentQty: number, change: number) => {
+    if (!id) return; // [FIX]: Check ID tồn tại
     const newQty = currentQty + change;
     if (newQty < 0) return;
 
@@ -159,7 +173,7 @@ export default function InventoryScreen() {
       {/* HEADER */}
       <View style={styles.header}>
         <Text style={styles.title}>Inventory</Text>
-        <TouchableOpacity style={styles.addButton} onPress={() => { resetForm(); setModalVisible(true); }}>
+        <TouchableOpacity style={styles.addButton} onPress={() => setModalVisible(true)}>
           <Plus size={20} color="#ffffff" />
         </TouchableOpacity>
       </View>
@@ -168,7 +182,7 @@ export default function InventoryScreen() {
       {lowStockCount > 0 && (
         <View style={styles.alertBanner}>
           <AlertTriangle size={20} color="#d97706" />
-          <Text style={styles.alertText}>{lowStockCount} item{lowStockCount>1 ? 's' : ''} running low on stock</Text>
+          <Text style={styles.alertText}>{lowStockCount} item{lowStockCount > 1 ? 's' : ''} running low on stock</Text>
         </View>
       )}
 
@@ -184,11 +198,42 @@ export default function InventoryScreen() {
         />
       </View>
 
+      {/* FILTER CHIPS */}
+      <View style={{ height: 60 }}>
+        <ScrollView
+          horizontal={true}
+          showsHorizontalScrollIndicator={false}
+          style={styles.filterContainer}
+          contentContainerStyle={styles.filterContentContainer}
+        >
+          {dynamicCategories.map((cat) => (
+            <TouchableOpacity
+              key={cat}
+              style={[
+                styles.filterChip,
+                selectedCategory === cat && styles.filterChipActive,
+              ]}
+              onPress={() => handleCategoryPress(cat)}
+              activeOpacity={0.7}
+            >
+              <Text
+                style={[
+                  styles.filterChipText,
+                  selectedCategory === cat && styles.filterChipTextActive,
+                ]}
+              >
+                {cat}
+              </Text>
+            </TouchableOpacity>
+          ))}
+        </ScrollView>
+      </View>
+
       {/* LIST */}
       <ScrollView
         style={styles.content}
         showsVerticalScrollIndicator={false}
-        refreshControl={<RefreshControl refreshing={loadingList} onRefresh={fetchInventory} />}
+        refreshControl={<RefreshControl refreshing={loadingList} onRefresh={onRefresh} />}
       >
         {loadingList && items.length === 0 ? (
           <ActivityIndicator size="large" color="#d97706" style={{ marginTop: 20 }} />
@@ -196,19 +241,21 @@ export default function InventoryScreen() {
           <>
             {filteredItems.length === 0 && !loadingList && (
               <View style={{ alignItems: 'center', marginTop: 40 }}>
-                <Text style={{ color: '#6b7280' }}>Kho hàng trống</Text>
+                <Text style={{ color: '#6b7280' }}>
+                  {selectedCategory !== "All"
+                    ? `No items found in "${selectedCategory}".`
+                    : "Inventory is empty."}
+                </Text>
               </View>
             )}
             {filteredItems.map(item => (
               <View key={item.id} style={styles.inventoryCard}>
                 <View style={styles.inventoryHeader}>
                   <View style={styles.inventoryInfo}>
-                    {/* Inline editing: if this card is being edited, show inputs */}
                     {editingId === item.id ? (
                       <>
-                        <TextInput value={editedName} onChangeText={setEditedName} style={[styles.input, { fontSize: 16 }]} />
-                        <Text style={styles.categoryLabel}>Category</Text>
-                        <TextInput value={editedCategory} onChangeText={setEditedCategory} style={styles.input} />
+                        <TextInput value={editedName} onChangeText={setEditedName} style={[styles.input, { fontSize: 16, marginBottom: 4 }]} placeholder="Name" />
+                        <TextInput value={editedCategory} onChangeText={setEditedCategory} style={styles.input} placeholder="Category" />
                       </>
                     ) : (
                       <>
@@ -218,10 +265,10 @@ export default function InventoryScreen() {
                     )}
                   </View>
 
-                  {/* Edit / Save cancel buttons */}
+                  {/* ACTION BUTTONS (EDIT & DELETE) */}
                   {editingId === item.id ? (
                     <View style={{ flexDirection: 'row', gap: 8 }}>
-                      <TouchableOpacity style={styles.inlineBtn} onPress={() => saveInlineEdit(item.id)} disabled={savingInline}>
+                      <TouchableOpacity style={styles.inlineBtn} onPress={() => saveInlineEdit(item.id || '')} disabled={savingInline}>
                         <Text style={styles.inlineBtnText}>{savingInline ? 'Saving...' : 'Save'}</Text>
                       </TouchableOpacity>
                       <TouchableOpacity style={styles.inlineCancel} onPress={cancelInlineEdit}>
@@ -229,9 +276,15 @@ export default function InventoryScreen() {
                       </TouchableOpacity>
                     </View>
                   ) : (
-                    <TouchableOpacity style={styles.editButton} onPress={() => openInlineEdit(item)}>
-                      <Edit2 size={16} color="#6b7280" />
-                    </TouchableOpacity>
+                    <View style={{ flexDirection: 'row', gap: 8 }}>
+                      {/* [FIX]: Thêm || '' để tránh lỗi undefined */}
+                      <TouchableOpacity style={styles.deleteButton} onPress={() => handleDelete(item.id || '', item.ingredient || '')}>
+                        <Trash2 size={16} color="#ef4444" />
+                      </TouchableOpacity>
+                      <TouchableOpacity style={styles.editButton} onPress={() => openInlineEdit(item)}>
+                        <Edit2 size={16} color="#6b7280" />
+                      </TouchableOpacity>
+                    </View>
                   )}
                 </View>
 
@@ -239,8 +292,8 @@ export default function InventoryScreen() {
                   <View style={styles.quantityInfo}>
                     {editingId === item.id ? (
                       <>
-                        <TextInput value={editedQty} onChangeText={setEditedQty} style={[styles.input, { width: 100 }]} keyboardType="numeric" />
-                        <TextInput value={editedUnit} onChangeText={setEditedUnit} style={[styles.input, { width: 100, marginLeft: 8 }]} />
+                        <TextInput value={editedQty} onChangeText={setEditedQty} style={[styles.input, { width: 80 }]} keyboardType="numeric" placeholder="Qty" />
+                        <TextInput value={editedUnit} onChangeText={setEditedUnit} style={[styles.input, { width: 80, marginLeft: 8 }]} placeholder="Unit" />
                       </>
                     ) : (
                       <>
@@ -258,16 +311,16 @@ export default function InventoryScreen() {
                   )}
                 </View>
 
-                {/* +/- and stock label */}
-                {editingId === item.id ? null : (
+                {editingId !== item.id && (
                   <View style={styles.actionButtons}>
-                    <TouchableOpacity style={styles.quantityButton} onPress={() => handleUpdateStock(item.id, item.quantity, -1)}>
+                    {/* [FIX]: Thêm || '' để tránh lỗi undefined */}
+                    <TouchableOpacity style={styles.quantityButton} onPress={() => handleUpdateStock(item.id || '', item.quantity || 0, -1)} disabled={(item.quantity || 0) <= 0}>
                       <Minus size={16} color="#dc2626" />
                     </TouchableOpacity>
                     <View style={styles.quantityDisplay}>
                       <Text style={styles.quantityDisplayText}>Stock Level</Text>
                     </View>
-                    <TouchableOpacity style={styles.quantityButton} onPress={() => handleUpdateStock(item.id, item.quantity, 1)}>
+                    <TouchableOpacity style={styles.quantityButton} onPress={() => handleUpdateStock(item.id || '', item.quantity || 0, 1)}>
                       <Plus size={16} color="#059669" />
                     </TouchableOpacity>
                   </View>
@@ -279,57 +332,16 @@ export default function InventoryScreen() {
         <View style={{ height: 100 }} />
       </ScrollView>
 
-      {/* ADD modal (unchanged) */}
-      <Modal
-        animationType="slide"
-        transparent={true}
+      {/* USE THE SEPARATE MODAL COMPONENT */}
+      <AddInventoryModal
         visible={modalVisible}
-        onRequestClose={() => setModalVisible(false)}
-      >
-        <TouchableWithoutFeedback onPress={() => Keyboard.dismiss()}>
-          <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : "height"} style={styles.modalOverlay}>
-            <View style={styles.modalContent}>
-              <View style={styles.dragHandle} />
-              <View style={styles.modalHeader}>
-                <Text style={styles.modalTitle}>Add New Ingredient</Text>
-                <TouchableOpacity onPress={() => setModalVisible(false)}>
-                  <X size={24} color="#6b7280" />
-                </TouchableOpacity>
-              </View>
-
-              <ScrollView showsVerticalScrollIndicator={false}>
-                <Text style={styles.label}>Name</Text>
-                <TextInput style={styles.input} placeholder="e.g. All-Purpose Flour" value={ingredientName} onChangeText={setIngredientName} />
-
-                <View style={{ flexDirection: 'row', gap: 12, marginTop: 16 }}>
-                  <View style={{ flex: 1 }}>
-                    <Text style={styles.label}>Quantity</Text>
-                    <TextInput style={styles.input} placeholder="0" keyboardType="numeric" value={quantity} onChangeText={setQuantity} />
-                  </View>
-                  <View style={{ flex: 1 }}>
-                    <Text style={styles.label}>Unit</Text>
-                    <TextInput style={styles.input} placeholder="kg, pcs" value={unit} onChangeText={setUnit} />
-                  </View>
-                </View>
-
-                <Text style={[styles.label, { marginTop: 16 }]}>Category</Text>
-                <TextInput style={styles.input} placeholder="Baking, Dairy..." value={category} onChangeText={setCategory} />
-
-                <TouchableOpacity style={[styles.saveBtn, loadingAdd && { opacity: 0.7 }]} onPress={handleSave} disabled={loadingAdd}>
-                  {loadingAdd ? <ActivityIndicator color="#fff" /> : <Text style={styles.saveBtnText}>Save Ingredient</Text>}
-                </TouchableOpacity>
-
-                <View style={{ height: 40 }} />
-              </ScrollView>
-            </View>
-          </KeyboardAvoidingView>
-        </TouchableWithoutFeedback>
-      </Modal>
+        onClose={() => setModalVisible(false)}
+        onSuccess={fetchInventory} // Refresh list when item is added
+      />
     </SafeAreaView>
   );
 }
 
-// === Styles (kept similar to your original styles; added inline-edit btn styles)
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#f9fafb' },
   header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 20, paddingVertical: 16, backgroundColor: '#ffffff', borderBottomWidth: 1, borderBottomColor: '#e5e7eb' },
@@ -340,14 +352,24 @@ const styles = StyleSheet.create({
   searchContainer: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#ffffff', marginHorizontal: 20, marginTop: 16, paddingHorizontal: 16, borderRadius: 12, borderWidth: 1, borderColor: '#e5e7eb' },
   searchIcon: { marginRight: 8 },
   searchInput: { flex: 1, height: 48, fontSize: 16, color: '#111827' },
-  content: { flex: 1, paddingHorizontal: 20, marginTop: 16 },
+  filterContainer: { marginTop: 12, marginBottom: 8, flexGrow: 0, height: 50 },
+  filterContentContainer: { paddingHorizontal: 20, alignItems: 'center' },
+  filterChip: { paddingVertical: 8, paddingHorizontal: 20, marginRight: 10, borderRadius: 25, backgroundColor: "#F3F4F6", justifyContent: 'center', alignItems: 'center', borderWidth: 1, borderColor: "#F3F4F6" },
+  filterChipActive: { backgroundColor: "#d97706", borderColor: "#d97706", shadowColor: "#d97706", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.2, shadowRadius: 3, elevation: 3 },
+  filterChipText: { color: "#6B7280", fontSize: 14, fontWeight: "600" },
+  filterChipTextActive: { color: "#FFFFFF", fontWeight: "700" },
+  content: { flex: 1, paddingHorizontal: 20, marginTop: 4 },
   inventoryCard: { backgroundColor: '#ffffff', borderRadius: 12, padding: 16, marginBottom: 16, borderWidth: 1, borderColor: '#e5e7eb' },
   inventoryHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 12 },
   inventoryInfo: { flex: 1 },
   ingredientName: { fontSize: 16, fontWeight: '700', color: '#111827', marginBottom: 4 },
   category: { fontSize: 12, color: '#6b7280' },
-  categoryLabel: { fontSize: 12, color: '#6b7280', marginTop: 6, marginBottom: 6 },
+  
+  // Nút Sửa (Edit)
   editButton: { width: 32, height: 32, borderRadius: 8, backgroundColor: '#f9fafb', justifyContent: 'center', alignItems: 'center' },
+  // Nút Xóa (Delete)
+  deleteButton: { width: 32, height: 32, borderRadius: 8, backgroundColor: '#fef2f2', justifyContent: 'center', alignItems: 'center', borderWidth: 1, borderColor: '#fee2e2' },
+  
   inlineBtn: { backgroundColor: '#059669', paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8, justifyContent: 'center', alignItems: 'center' },
   inlineBtnText: { color: '#fff', fontWeight: '600' },
   inlineCancel: { paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8, justifyContent: 'center', alignItems: 'center' },
@@ -363,52 +385,5 @@ const styles = StyleSheet.create({
   quantityButton: { width: 44, height: 44, borderRadius: 8, backgroundColor: '#f9fafb', borderWidth: 1, borderColor: '#e5e7eb', justifyContent: 'center', alignItems: 'center' },
   quantityDisplay: { flex: 1, height: 44, borderRadius: 8, backgroundColor: '#f9fafb', justifyContent: 'center', alignItems: 'center' },
   quantityDisplayText: { fontSize: 14, color: '#6b7280', fontWeight: '600' },
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.5)',
-    justifyContent: 'flex-end',
-  },
-  modalContent: {
-    backgroundColor: '#fff',
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
-    padding: 24,
-    height: '65%',
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: -2 },
-    shadowOpacity: 0.25,
-    shadowRadius: 3.84,
-    elevation: 5,
-  },
-  dragHandle: {
-    width: 48,
-    height: 4,
-    backgroundColor: '#e5e7eb',
-    borderRadius: 2,
-    alignSelf: 'center',
-    marginBottom: 20,
-  },
-  modalHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 24,
-  },
-  modalTitle: {
-    fontSize: 20,
-    fontWeight: '700',
-    color: '#111827',
-  },
-  label: { fontSize: 14, fontWeight: '600', color: '#374151', marginBottom: 8 },
-  input: {
-    borderWidth: 1, borderColor: '#d1d5db', borderRadius: 8,
-    padding: 12, fontSize: 16, backgroundColor: '#fff', color: '#111827'
-  },
-  saveBtn: {
-    marginTop: 30, backgroundColor: '#d97706', paddingVertical: 16, 
-    borderRadius: 12, alignItems: 'center',
-    shadowColor: '#d97706', shadowOffset: { width: 0, height: 4 }, 
-    shadowOpacity: 0.3, shadowRadius: 5, elevation: 4
-  },
-  saveBtnText: { color: '#fff', fontSize: 16, fontWeight: 'bold' }
+  input: { borderWidth: 1, borderColor: '#d1d5db', borderRadius: 8, padding: 12, fontSize: 16, backgroundColor: '#fff', color: '#111827' },
 });
