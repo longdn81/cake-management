@@ -1,10 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { 
   Modal, View, Text, StyleSheet, TextInput, TouchableOpacity, 
-  ActivityIndicator, Alert, ScrollView, FlatList 
+  ActivityIndicator, Alert, ScrollView, FlatList, Image
 } from 'react-native';
-import { X, Plus, Trash2, ChevronDown, Check } from 'lucide-react-native';
+import { X, Plus, Trash2, ChevronDown, Check, Camera } from 'lucide-react-native';
 import { updateCake } from '../../../controllers/admin/cake.controller';
+import { pickImageFromGallery, uploadToCloudinary } from '@/src/helper/uploadImage';
 
 interface CakeModalProps {
   visible: boolean;
@@ -13,6 +14,8 @@ interface CakeModalProps {
   categories: any[];
   onUpdateSuccess: () => void;
 }
+
+const THEME_COLOR = '#d97706';
 
 export default function CakeModal({ visible, onClose, cake, categories, onUpdateSuccess }: CakeModalProps) {
   const [loading, setLoading] = useState(false);
@@ -25,6 +28,10 @@ export default function CakeModal({ visible, onClose, cake, categories, onUpdate
   const [description, setDescription] = useState('');
   const [discount, setDiscount] = useState('');
   const [rate, setRate] = useState('');
+
+  // --- Images State ---
+  const [images, setImages] = useState<string[]>([]); // Ảnh cũ (URL online)
+  const [newImages, setNewImages] = useState<string[]>([]); // Ảnh mới (URI local)
 
   // Variants States
   const [variants, setVariants] = useState<any[]>([]); 
@@ -45,8 +52,37 @@ export default function CakeModal({ visible, onClose, cake, categories, onUpdate
       setDiscount(cake.discount ? cake.discount.toString() : '0');
       setRate(cake.rate ? cake.rate.toString() : '5');
       setVariants(cake.variants || []);
+      setNewImages([]);
     }
-  }, [cake]);
+  }, [visible, cake]);
+  const handlePickImage = async () => {
+    try {
+      const uri = await pickImageFromGallery();
+      if (uri) {
+        // Thêm vào danh sách ảnh mới để chờ upload
+        setNewImages([...newImages, uri]);
+      }
+    } catch (error) {
+      console.log("Lỗi chọn ảnh:", error);
+    }
+  };
+
+  const removeOldImage = (index: number) => {
+    Alert.alert("Xóa ảnh", "Bạn có chắc muốn xóa ảnh này?", [
+        { text: "Hủy", style: "cancel"},
+        { text: "Xóa", style: "destructive", onPress: () => {
+            const updated = [...images];
+            updated.splice(index, 1);
+            setImages(updated);
+        }}
+    ])
+  };
+
+  const removeNewImage = (index: number) => {
+    const updated = [...newImages];
+    updated.splice(index, 1);
+    setNewImages(updated);
+  };
 
   const handleAddVariant = () => {
     if (!tempSize || !tempPrice) {
@@ -68,6 +104,15 @@ export default function CakeModal({ visible, onClose, cake, categories, onUpdate
   const handleUpdate = async () => {
     setLoading(true);
     try {
+      let uploadedUrls: string[] = [];
+      if (newImages.length > 0) {
+        // Upload song song tất cả ảnh mới
+        const uploadPromises = newImages.map(uri => uploadToCloudinary(uri));
+        uploadedUrls = await Promise.all(uploadPromises);
+      }
+
+      // B. Gộp ảnh cũ + ảnh mới vừa upload
+      const finalImages = [...images, ...uploadedUrls];
       await updateCake(cake.id, {
         name,
         price: parseFloat(price),
@@ -76,7 +121,8 @@ export default function CakeModal({ visible, onClose, cake, categories, onUpdate
         description,
         discount: parseFloat(discount),
         rate: parseFloat(rate),
-        variants: variants
+        variants: variants,
+        images: finalImages,
       });
       Alert.alert("Success", "Cake updated successfully!");
       onUpdateSuccess();
@@ -103,6 +149,36 @@ export default function CakeModal({ visible, onClose, cake, categories, onUpdate
           </View>
 
           <ScrollView showsVerticalScrollIndicator={false}>
+            <Text style={styles.label}>Images</Text>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.imageContainer}>
+                {/* Nút Thêm ảnh */}
+                <TouchableOpacity style={styles.addImageBtn} onPress={handlePickImage}>
+                    <Camera size={24} color={THEME_COLOR} />
+                    <Text style={styles.addImageText}>Add Photo</Text>
+                </TouchableOpacity>
+                
+                {/* Danh sách ảnh cũ (Server) */}
+                {images.map((uri, index) => (
+                    <View key={`old-${index}`} style={styles.imageWrapper}>
+                        <Image source={{ uri }} style={styles.cakeImage} />
+                        <TouchableOpacity style={styles.removeImageBtn} onPress={() => removeOldImage(index)}>
+                            <X size={12} color="#fff" />
+                        </TouchableOpacity>
+                    </View>
+                ))}
+
+                {/* Danh sách ảnh mới (Local - chờ upload) */}
+                {newImages.map((uri, index) => (
+                    <View key={`new-${index}`} style={styles.imageWrapper}>
+                        <Image source={{ uri }} style={styles.cakeImage} />
+                        <View style={styles.newBadge}><Text style={styles.newText}>NEW</Text></View>
+                        <TouchableOpacity style={styles.removeImageBtn} onPress={() => removeNewImage(index)}>
+                            <X size={12} color="#fff" />
+                        </TouchableOpacity>
+                    </View>
+                ))}
+            </ScrollView>
+
             {/* Name */}
             <Text style={styles.label}>Name</Text>
             <TextInput style={styles.input} value={name} onChangeText={setName} />
@@ -261,4 +337,13 @@ const styles = StyleSheet.create({
   catItemSelected: { backgroundColor: '#fffbeb' },
   catText: { fontSize: 16, color: '#374151' },
   catTextSelected: { color: '#d97706', fontWeight: 'bold' },
+  // --- IMAGE STYLES ---
+  imageContainer: { flexDirection: 'row', marginBottom: 10 },
+  addImageBtn: { width: 80, height: 80, borderRadius: 12, borderWidth: 1, borderColor: THEME_COLOR, borderStyle: 'dashed', justifyContent: 'center', alignItems: 'center', marginRight: 10, backgroundColor: '#fffaf0' },
+  addImageText: { fontSize: 10, color: THEME_COLOR, marginTop: 4, fontWeight: '600' },
+  imageWrapper: { position: 'relative', marginRight: 10 },
+  cakeImage: { width: 80, height: 80, borderRadius: 12, backgroundColor: '#f3f4f6' },
+  removeImageBtn: { position: 'absolute', top: -5, right: -5, backgroundColor: '#ef4444', borderRadius: 10, width: 20, height: 20, justifyContent: 'center', alignItems: 'center', borderWidth: 1, borderColor: '#fff' },
+  newBadge: { position: 'absolute', bottom: 0, right: 0, backgroundColor: THEME_COLOR, paddingHorizontal: 4, paddingVertical: 2, borderTopLeftRadius: 8, borderBottomRightRadius: 12 },
+  newText: { color: '#fff', fontSize: 8, fontWeight: 'bold' },
 });
