@@ -5,7 +5,7 @@ import { useFocusEffect, useRouter } from 'expo-router';
 
 // Firebase Imports
 import { getAuth } from 'firebase/auth';
-import { doc, getDoc } from 'firebase/firestore';
+import { collection, doc, getDoc, getDocs, query, where } from 'firebase/firestore';
 import { db } from '../../src/services/firebaseConfig';
 
 import { Banner } from '../../src/models/banner.model';
@@ -45,9 +45,50 @@ export default function HomeScreen() {
   const [bannerModalVisible, setBannerModalVisible] = useState(false);
   const [selectedBanner, setSelectedBanner] = useState<any>(null);
 
+  //  State lưu thống kê
+  const [stats, setStats] = useState({
+    ordersToday: 0,
+    revenueToday: 0,
+  });
+
   // 1. Hàm lấy thông tin Admin
   const fetchAdminInfo = async () => {
     try {
+      if (!refreshing) setLoading(true);
+      
+      // 1. Xác định thời gian bắt đầu của ngày hôm nay (00:00:00)
+      const startOfDay = new Date();
+      startOfDay.setHours(0, 0, 0, 0);
+      const startTimestamp = startOfDay.getTime();
+
+      // 2. Tạo Query lấy đơn hàng từ đầu ngày đến giờ
+      const ordersRef = collection(db, "orders");
+      const qToday = query(ordersRef, where("createdAt", ">=", startTimestamp));
+
+      // 3. Chạy Promise.all để lấy tất cả dữ liệu cùng lúc
+      const [cakesData, bannersData, categoriesData, ordersSnap] = await Promise.all([
+        getCakes(),
+        getBanners(),
+        getCategories(),
+        getDocs(qToday) // Lấy các đơn hàng hôm nay
+      ]);
+
+      // --- XỬ LÝ DỮ LIỆU THỐNG KÊ ---
+      let todayRevenue = 0;
+      const todayOrdersCount = ordersSnap.size;
+
+      ordersSnap.forEach((doc) => {
+        const data = doc.data();
+        // Chỉ cộng tiền những đơn không bị hủy (tuỳ logic của bạn)
+        if (data.status !== 'cancelled') {
+            todayRevenue += (data.totalPrice || 0);
+        }
+      });
+
+      setStats({
+        ordersToday: todayOrdersCount,
+        revenueToday: todayRevenue
+      });
       const user = auth.currentUser;
       if (user) {
         const userDoc = await getDoc(doc(db, "users", user.uid));
@@ -149,12 +190,18 @@ export default function HomeScreen() {
                 <Text style={styles.statLabel}>Total Cakes</Text>
              </View>
           <View style={styles.statCard}>
-            <Text style={styles.statValue}>12</Text>
+            <Text style={styles.statValue}>
+                {loading ? "..." : stats.ordersToday}
+            </Text>
             <Text style={styles.statLabel}>Orders Today</Text>
           </View>
+
+          {/* Card 3: Revenue Today */}
           <View style={styles.statCard}>
-            <Text style={styles.statValue}>$850</Text>
-            <Text style={styles.statLabel}>Revenue</Text>
+            <Text style={styles.statValue}>
+                {loading ? "..." : `$${stats.revenueToday.toLocaleString()}`}
+            </Text>
+            <Text style={styles.statLabel}>Revenue (Today)</Text>
           </View>
         </View>
 

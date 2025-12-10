@@ -22,6 +22,8 @@ export default function ProfileScreen() {
   // State Data
   const [userInfo, setUserInfo] = useState<any>({});
   const [totalUsers, setTotalUsers] = useState(0);
+  const [totalOrders, setTotalOrders] = useState(0);
+  const [totalRevenue, setTotalRevenue] = useState(0);
 
   const [editModalVisible, setEditModalVisible] = useState(false);
   const [changePassVisible, setChangePassVisible] = useState(false);
@@ -41,6 +43,21 @@ export default function ProfileScreen() {
         const usersSnapshot = await getDocs(collection(db, "users"));
         setTotalUsers(usersSnapshot.size);
       }
+      //  Tính Total Orders & Revenue
+      const ordersSnapshot = await getDocs(collection(db, "orders"));
+      
+      // 1. Tổng đơn hàng
+      setTotalOrders(ordersSnapshot.size);
+
+      // 2. Tổng doanh thu (Chỉ tính đơn chưa hủy)
+      let revenue = 0;
+      ordersSnapshot.forEach((doc) => {
+          const data = doc.data();
+          if (data.status !== 'cancelled') {
+              revenue += (data.totalPrice || 0);
+          }
+      });
+      setTotalRevenue(revenue);
     } catch (error) {
       console.error("Lỗi lấy data profile:", error);
     }
@@ -154,13 +171,13 @@ export default function ProfileScreen() {
 
           <View style={styles.statsRow}>
             <View style={styles.statItem}>
-              <Text style={styles.statValue}>156</Text>
+              <Text style={styles.statValue}>{totalOrders}</Text>
               <Text style={styles.statLabel}>Total Orders</Text>
             </View>
             <View style={styles.statDivider} />
             <View style={styles.statItem}>
-              <Text style={styles.statValue}>$12,450</Text>
-              <Text style={styles.statLabel}>Revenue</Text>
+              <Text style={styles.statValue}>${totalRevenue.toLocaleString()}</Text>
+              <Text style={styles.statLabel}>Total Revenue</Text>
             </View>
             <View style={styles.statDivider} />
             
