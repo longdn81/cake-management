@@ -14,6 +14,7 @@ import { auth, db } from '../../src/services/firebaseConfig';
 import { getCakes } from '../../src/controllers/admin/cake.controller';
 import { getBanners } from '../../src/controllers/admin/banner.controller';
 import { getCategories } from '../../src/controllers/admin/category.controller';
+import { addToCart } from '@/src/controllers/cart.controller';
 
 const THEME_COLOR = '#d97706';
 
@@ -147,6 +148,32 @@ export default function ClientHomeScreen() {
     if(!id) return;
     router.push({ pathname: "/client/detailCake", params: { id: id } });
   };
+  const handleQuickAddToCart = async (cake: any) => {
+    const user = auth.currentUser;
+    if (!user) {
+      alert("Please login to add to cart"); // Hoặc dùng Toast cho đẹp
+      return;
+    }
+
+    try {
+      // Tạo item giỏ hàng (Mặc định số lượng 1, không variant)
+      const cartItem = {
+        cakeId: cake.id,
+        name: cake.name,
+        image: cake.image, // Ở Home mình đã format lấy ảnh đầu tiên vào biến .image rồi
+        price: cake.price, 
+        quantity: 1,
+        variant: null 
+      };
+
+      await addToCart(user.uid, cartItem);
+      alert(`Added ${cake.name} to cart!`); // Thông báo nhanh
+      
+    } catch (error) {
+      console.error(error);
+      alert("Failed to add to cart");
+    }
+  };
 
   // --- COMPONENT CON: ITEM BÁNH NGANG ---
   const renderCakeItem = (cake: any) => (
@@ -155,7 +182,7 @@ export default function ClientHomeScreen() {
             <Image source={{ uri: cake.image }} style={styles.cakeImage} />
             {/* Badge Rating trên ảnh */}
             <View style={styles.ratingBadge}>
-                <Star size={10} color="#fff" fill="#fff" />
+                <Star size={13} color="#ffffffff" fill="#fff" />
                 <Text style={styles.ratingText}>{cake.rate.toFixed(1)}</Text>
             </View>
         </View>
@@ -166,7 +193,10 @@ export default function ClientHomeScreen() {
             
             <View style={styles.cakeFooter}>
                 <Text style={styles.cakePrice}>${cake.price}</Text>
-                <TouchableOpacity style={styles.addBtn}>
+                <TouchableOpacity 
+                    style={styles.addBtn}
+                    onPress={() => handleQuickAddToCart(cake)} // Gọi hàm thêm nhanh
+                >
                     <Plus size={16} color="#fff" />
                 </TouchableOpacity>
             </View>
@@ -264,7 +294,14 @@ export default function ClientHomeScreen() {
                                     <Text style={styles.cakeCategory} numberOfLines={1}>{cake.category}</Text>
                                     <View style={styles.cakeFooter}>
                                         <Text style={styles.cakePrice}>${cake.price}</Text>
-                                        <View style={styles.addBtn}><Plus size={14} color="#fff" /></View>
+                                        <View style={styles.addBtn}>
+                                          <TouchableOpacity 
+                                              style={styles.addBtn}
+                                              onPress={() => handleQuickAddToCart(cake)}
+                                          >
+                                              <Plus size={14} color="#fff" />
+                                          </TouchableOpacity>
+                                        </View>
                                     </View>
                                 </View>
                             </TouchableOpacity>
@@ -431,9 +468,9 @@ const styles = StyleSheet.create({
   cakeImage: { width: '100%', height: 120, borderTopLeftRadius: 16, borderTopRightRadius: 16, backgroundColor: '#f3f4f6' },
   ratingBadge: { 
     position: 'absolute', top: 8, right: 8, flexDirection: 'row', alignItems: 'center',
-    backgroundColor: 'rgba(0,0,0,0.6)', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 8 
+    backgroundColor: 'rgba(0,0,0,0.6)', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 8 ,
   },
-  ratingText: { color: '#fff', fontSize: 10, fontWeight: 'bold', marginLeft: 2 },
+  ratingText: { color: '#fff', fontSize: 13, fontWeight: 'bold', marginLeft: 2 },
   
   cakeInfo: { padding: 10 },
   cakeName: { fontSize: 15, fontWeight: 'bold', color: '#111827', marginBottom: 2 },

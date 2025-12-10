@@ -17,7 +17,7 @@ import { toggleUserFavorite } from '../../src/controllers/auth.controller';
 // Import Controller & Model
 import { getCakeById } from '../../src/controllers/admin/cake.controller';
 import { Cake } from '../../src/models/cake.model';
-
+import { addToCart } from '../../src/controllers/cart.controller';
 const { width } = Dimensions.get('window');
 const THEME_COLOR = '#d97706'; // Cam chủ đạo
 
@@ -123,12 +123,38 @@ export default function DetailCakeScreen() {
   // Tổng tiền
   const totalPrice = finalPrice * quantity;
 
-  const handleAddToCart = () => {
+  const handleAddToCart = async () => {
      if(!cake || !cake.isAvailable) return;
-     const sizeLabel = selectedVariant ? `(${selectedVariant.label})` : '';
-     alert(`Đã thêm: ${quantity} x ${cake.name} ${sizeLabel}\nTổng: $${totalPrice.toFixed(2)}`);
-  };
+     
+     const user = auth.currentUser;
+     if (!user) {
+         alert("Please login to add to cart");
+         return;
+     }
 
+     setLoading(true); // Tận dụng state loading hoặc tạo state riêng
+     try {
+         // Tạo item để lưu
+         const cartItem = {
+             cakeId: cake.id,
+             name: cake.name,
+             image: cake.thumbnail,
+             price: selectedVariant ? selectedVariant.price : cake.price, // Giá chính xác
+             quantity: quantity,
+             variant: selectedVariant || null
+         };
+
+         await addToCart(user.uid, cartItem);
+         
+         // Chuyển hướng sang trang Cart
+         router.push('/client/cart'); 
+
+     } catch (error) {
+         alert("Failed to add to cart");
+     } finally {
+         setLoading(false);
+     }
+  };
   if (loading) return <View style={styles.center}><ActivityIndicator size="large" color={THEME_COLOR} /></View>;
   if (!cake) return <View style={styles.center}><Text>Không tìm thấy bánh!</Text></View>;
 

@@ -1,8 +1,45 @@
 import { Tabs } from 'expo-router';
-import { Home, ShoppingCart, Heart, User } from 'lucide-react-native';
+import { Home, ShoppingCart, Heart, User, ShoppingBag } from 'lucide-react-native';
 import { View } from 'react-native';
 
+// 1. Import Firebase
+import { getAuth } from 'firebase/auth';
+import { doc, onSnapshot } from 'firebase/firestore';
+import { db } from '../../src/services/firebaseConfig'; // Đảm bảo đường dẫn đúng
+import { useEffect, useState } from 'react';
+
+const THEME_COLOR = '#d97706';
+
+  
 export default function ClientLayout() {
+  // 2. State lưu số lượng giỏ hàng
+  const [cartCount, setCartCount] = useState(0);
+  const auth = getAuth();
+
+  // 3. Lắng nghe thay đổi của giỏ hàng (Real-time)
+  useEffect(() => {
+    const user = auth.currentUser;
+    if (!user) return;
+
+    // Tạo listener lắng nghe thay đổi của document user
+    const unsub = onSnapshot(doc(db, "users", user.uid), (doc) => {
+      if (doc.exists()) {
+        const data = doc.data();
+        const cart = data.cart || [];
+        // Cập nhật số lượng (dựa trên độ dài mảng cart)
+        setCartCount(cart.length);
+        
+        // Nếu muốn đếm tổng số lượng item (ví dụ mua 2 cái bánh A thì tính là 2):
+        // const total = cart.reduce((sum: number, item: any) => sum + item.quantity, 0);
+        // setCartCount(total);
+      } else {
+        setCartCount(0);
+      }
+    });
+
+    // Cleanup listener khi component unmount (để tránh rò rỉ bộ nhớ)
+    return () => unsub();
+  }, []); 
   return (
     <Tabs
       screenOptions={{
@@ -44,10 +81,10 @@ export default function ClientLayout() {
         name="cart"
         options={{
           title: 'Cart',
-          tabBarIcon: ({ color }) => <ShoppingCart size={24} color={color} />,
-          // Ví dụ: Hiện badge số lượng
-          tabBarBadge: 2, 
-          tabBarBadgeStyle: { backgroundColor: '#d97706', color: 'white', fontSize: 10 }
+          tabBarIcon: ({ color }) => <ShoppingBag size={24} color={color} />,
+          // Chỉ hiện Badge nếu số lượng > 0
+          tabBarBadge: cartCount > 0 ? cartCount : undefined, 
+          tabBarBadgeStyle: { backgroundColor: THEME_COLOR, color: 'white', fontSize: 10 }
         }}
       />
 
